@@ -10,7 +10,6 @@ A control card for vacuums from the [Dreame Vacuum](https://github.com/Tasshack/
 - **Clean N rooms** cleans the selected rooms; with none selected, **Clean all**.
 - Pause and resume, dock (asks for a second tap while a clean is running), locate.
 - CleanGenius, suction and mode, showing whichever the robot currently allows.
-- Dock status and consumable levels; anything under 10% is flagged.
 
 ```yaml
 type: custom:brinstar-vacuum-card
@@ -19,7 +18,21 @@ name: Robot              # optional
 map_entity: camera.my_robot_map  # optional; found from the device by default
 ```
 
-The map, settings, dock and maintenance entities are found from the vacuum's device, so `entity` is usually all you need.
+The map and settings entities are found from the vacuum's device, so `entity` is usually all you need.
+
+## Vacuum status card
+
+Maintenance for the same vacuum, meant to sit beside the vacuum card.
+
+- **Consumables:** level and time left for each brush, filter and sensor. Amber under 20%, red under 10%. **Reset** (after replacing or cleaning a part) needs a second tap.
+- **Last clean:** when, how long, and how much area.
+- **Dock & tanks:** base, auto-empty, water tanks, dust bag, detergent, hot water and drainage. Anything not in a normal state is highlighted.
+
+```yaml
+type: custom:brinstar-vacuum-status-card
+entity: vacuum.my_robot
+title: Maintenance   # optional
+```
 
 ## Development
 
