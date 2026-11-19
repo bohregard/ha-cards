@@ -1,23 +1,9 @@
 import { LitElement, html, nothing, svg, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { roomAt, vacuumToMap, type CalibrationPoint, type RoomBox } from "../lib/map";
-import { cleanCall, findSibling, stateTone, type EntityEntry, type ServiceCall } from "../lib/vacuum";
+import type { Hass, HassEntity } from "../lib/hass";
+import { cleanCall, findSibling, stateTone, type ServiceCall } from "../lib/vacuum";
 import { styles } from "./styles";
-
-interface HassEntity {
-  entity_id: string;
-  state: string;
-  attributes: Record<string, any>;
-  last_updated: string;
-}
-
-interface Hass {
-  states: Record<string, HassEntity>;
-  entities: Record<string, EntityEntry>;
-  callService(domain: string, service: string, data: Record<string, unknown>): Promise<unknown>;
-  formatEntityState?(entity: HassEntity, state?: string): string;
-  hassUrl(path: string): string;
-}
 
 export interface VacuumCardConfig {
   type: string;
@@ -35,25 +21,6 @@ interface MapRoom extends RoomBox {
   visibility?: string;
 }
 
-const CONSUMABLES: [string, string][] = [
-  ["main_brush_left", "Main brush"],
-  ["side_brush_left", "Side brush"],
-  ["filter_left", "Filter"],
-  ["sensor_dirty_left", "Sensors"],
-  ["wheel_dirty_left", "Wheel"],
-  ["scale_inhibitor_left", "Scale inhibitor"],
-];
-
-const DOCK: [string, string][] = [
-  ["self_wash_base_status", "Base"],
-  ["auto_empty_status", "Auto-empty"],
-  ["clean_water_tank_status", "Clean water"],
-  ["dirty_water_tank_status", "Dirty water"],
-  ["dust_bag_status", "Dust bag"],
-  ["detergent_status", "Detergent"],
-];
-
-const LOW = 10;
 const CONFIRM_MS = 4000;
 
 export class BrinstarVacuumCard extends LitElement {
@@ -109,7 +76,7 @@ export class BrinstarVacuumCard extends LitElement {
 
   private watched(): string[] {
     const ids = [this.config!.entity, this.mapId()];
-    for (const key of ["current_room", "cleaning_progress", ...CONSUMABLES.map(([k]) => k), ...DOCK.map(([k]) => k)]) {
+    for (const key of ["current_room", "cleaning_progress"]) {
       ids.push(this.sibling("sensor", key));
     }
     for (const key of ["cleangenius", "cleangenius_mode", "suction_level", "cleaning_mode"]) {
@@ -195,7 +162,7 @@ export class BrinstarVacuumCard extends LitElement {
     }
     return html`<ha-card>
       ${this.renderHeader(vac)} ${this.renderMap()} ${this.renderRooms()} ${this.renderActions(vac)}
-      ${this.renderSettings()} ${this.renderDock()} ${this.renderConsumables()}
+      ${this.renderSettings()}
     </ha-card>`;
   }
 
@@ -339,46 +306,6 @@ export class BrinstarVacuumCard extends LitElement {
         </label>`,
       )}
     </div>`;
-  }
-
-  private renderDock() {
-    const rows = DOCK.map(([key, label]) => ({ label, entity: this.stateOf(this.sibling("sensor", key)) })).filter(
-      (x): x is { label: string; entity: HassEntity } =>
-        !!x.entity && !["unavailable", "unknown"].includes(x.entity.state),
-    );
-    if (!rows.length) return nothing;
-    return html`<details>
-      <summary>Dock<span class="hint">${this.fmt(rows[0].entity)}</span></summary>
-      <div class="rows">
-        ${rows.map(
-          ({ label, entity }) => html`<div class="row"><span>${label}</span><span class="value">${this.fmt(entity)}</span></div>`,
-        )}
-      </div>
-    </details>`;
-  }
-
-  private renderConsumables() {
-    const rows = CONSUMABLES.map(([key, label]) => ({
-      label,
-      pct: Number(this.stateOf(this.sibling("sensor", key))?.state),
-    })).filter((x) => Number.isFinite(x.pct));
-    if (!rows.length) return nothing;
-    const low = rows.filter((r) => r.pct < LOW);
-    return html`<details>
-      <summary
-        >Maintenance<span class="hint ${low.length ? "warn" : ""}"
-          >${low.length ? `${low.map((r) => r.label).join(", ")} low` : "All good"}</span
-        ></summary
-      >
-      <div class="rows">
-        ${rows.map(
-          (r) => html`<div class="row ${r.pct < LOW ? "low" : ""}">
-            <span>${r.label}</span><span class="value">${r.pct}%</span>
-            <div class="meter"><div style="width:${Math.max(0, Math.min(100, r.pct))}%"></div></div>
-          </div>`,
-        )}
-      </div>
-    </details>`;
   }
 }
 
