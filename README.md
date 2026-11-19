@@ -1,4 +1,4 @@
-# Brinstar Cards
+# HA Dreame Card
 
 Custom Home Assistant dashboard cards. Install through the Marketplace (HACS) as a custom **Dashboard** repository.
 
