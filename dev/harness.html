@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pet cards harness</title>
+<!--
+  Visual harness for the pet cards. Serve the repo root over HTTP (python3 -m http.server)
+  and open /dev/harness.html. Needs dev/fixture.json (recorded from a real Home Assistant,
+  git-ignored) and a built dist/brinstar-cards.js.
+  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --primary-background-color: #14120f; --ha-card-background: #1e1b17; --card-background-color: #1e1b17;
+    --ha-card-border-color: #2e2a24; --ha-card-box-shadow: none; --divider-color: #2e2a24;
+    --primary-text-color: #f1ece3; --secondary-text-color: #ada394; --primary-color: #f4b650;
+    --text-primary-color: #1e1b17; --state-fan-on-color: #5fc3cf; --success-color: #8cc59a;
+    --warning-color: #f4b650; --error-color: #f07a5f; --ha-card-border-radius: 24px;
+  }
+  :root[data-theme="light"] {
+    --primary-background-color: #f4efe6; --ha-card-background: #fffcf7; --card-background-color: #fffcf7;
+    --ha-card-border-color: #e6ddce; --ha-card-box-shadow: 0 1px 2px rgba(51,36,17,.05), 0 6px 16px rgba(51,36,17,.05);
+    --divider-color: #e2d9ca; --primary-text-color: #221c15; --secondary-text-color: #62584c; --primary-color: #9e5d0a;
+    --text-primary-color: #fffcf7; --state-fan-on-color: #167c88; --success-color: #3d7a4e;
+    --warning-color: #c47a12; --error-color: #c2412a;
+  }
+  body { margin: 0; padding: 16px; background: var(--primary-background-color); color: var(--primary-text-color);
+         font-family: Montserrat, Roboto, sans-serif; }
+  h2 { font-size: 0.9rem; font-weight: 600; color: var(--secondary-text-color); margin: 8px 0; }
+  .grid { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin-bottom: 24px; }
+  .cell { width: var(--w, 360px); }
+  .cell > small { display: block; margin: 0 0 6px 4px; color: var(--secondary-text-color); font-size: 0.75rem; }
+  #log { position: fixed; right: 8px; bottom: 8px; max-width: 420px; font: 11px monospace; color: var(--secondary-text-color); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="log"></div>
+<script type="module">
+  import * as mdi from "https://cdn.jsdelivr.net/npm/@mdi/js@7.4.47/mdi.js";
+
+  const q = new URLSearchParams(location.search);
+  document.documentElement.dataset.theme = q.get("theme") ?? "dark";
+  if (q.get("w")) document.documentElement.style.setProperty("--w", `${q.get("w")}px`);
+
+  // Stand-ins for the HA elements the cards use.
+  customElements.define("ha-card", class extends HTMLElement {
+    constructor() {
+      super();
+      this.attachShadow({ mode: "open" }).innerHTML = `<style>:host{display:block;background:var(--ha-card-background);
+        border:1px solid var(--ha-card-border-color);border-radius:var(--ha-card-border-radius);
+        box-shadow:var(--ha-card-box-shadow);color:var(--primary-text-color)}</style><slot></slot>`;
+    }
+  });
+  customElements.define("ha-alert", class extends HTMLElement {
+    constructor() { super(); this.attachShadow({ mode: "open" }).innerHTML = `<div style="padding:12px;border-radius:12px;background:#f07a5f33"><slot></slot></div>`; }
+  });
+  // Like HA's ha-icon, draw into a shadow root: light-DOM children added during Lit's template
+  // cloning would shift Lit's part indexes.
+  customElements.define("ha-icon", class extends HTMLElement {
+    static observedAttributes = ["icon"];
+    constructor() { super(); this.attachShadow({ mode: "open" }); }
+    connectedCallback() { this.paint(); }
+    attributeChangedCallback() { this.paint(); }
+    paint() {
+      const name = (this.getAttribute("icon") ?? "").replace("mdi:", "");
+      const key = "mdi" + name.split("-").filter(Boolean).map((s) => s[0].toUpperCase() + s.slice(1)).join("");
+      this.shadowRoot.innerHTML = `<style>:host{display:inline-flex}</style><svg viewBox="0 0 24 24" style="width:var(--mdc-icon-size,24px);height:var(--mdc-icon-size,24px);fill:currentColor"><path d="${mdi[key] ?? ""}"/></svg>`;
+    }
+  });
+
+  await import(`../dist/brinstar-cards.js?${Date.now()}`);
+  const fx = await (await fetch("./fixture.json", { cache: "no-store" })).json();
+  const log = (m) => { const el = document.getElementById("log"); el.textContent = `${new Date().toLocaleTimeString()} ${m}\n` + el.textContent.slice(0, 600); };
+
+  function hassWith(mutate) {
+    const states = Object.fromEntries(fx.states.map((s) => [s.entity_id, structuredClone(s)]));
+    const set = (id, state, attrs) => { if (states[id]) { states[id].state = state; Object.assign(states[id].attributes, attrs ?? {}); states[id].last_changed = new Date().toISOString(); } };
+    mutate?.(set, states);
+    return {
+      states,
+      entities: fx.entities,
+      locale: { language: "en-US" },
+      formatEntityState: (e) => e.state,
+      hassUrl: (p) => p,
+      callService: async (d, s, data) => log(`${d}.${s} ${JSON.stringify(data)}`),
+      callWS: async (msg) => {
+        const ids = (msg.entity_ids ?? msg.statistic_ids ?? []).slice().sort().join(",");
+        const key = `${msg.type.startsWith("history") ? "history" : "statistics"}|${ids}`;
+        return fx.replies[key] ?? {};
+      },
+    };
+  }
+
+  const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
+  // Device stems come from the fixture, so the harness works with any recorded house.
+  const ids = fx.states.map((s) => s.entity_id);
+  const stem = (re) => (ids.map((id) => id.match(re)).find(Boolean) ?? [])[1];
+  const F = stem(/^sensor\.(.+)_last_fed$/);
+  const feeder = (extra) => (set) => { set(`button.${F}_reset_food_level_refilled`, daysAgo(3)); extra?.(set); };
+  const W = stem(/^sensor\.(.+)_water_weight$/);
+  const L = stem(/^vacuum\.(.+)_litter_box$/);
+  const laser = Object.values(fx.entities).find((e) => e.translation_key === "laser_dirty")?.entity_id;
+  const offline = (prefix) => (set, states) => { for (const id of Object.keys(states)) if (id.split(".")[1].startsWith(prefix)) set(id, "unavailable"); };
+
+  const SUITES = {
+    feeder: {
+      config: { type: "custom:brinstar-feeder-card", entity: `sensor.${F}_last_fed`, name: "Feeder 1", hopper_grams: 1300, grams_per_scoop: 10 },
+      cases: {
+        "live (never refilled)": null,
+        "refilled 3 days ago": feeder(),
+        low: feeder((set) => set(`binary_sensor.${F}_food_low`, "on")),
+        empty: feeder((set) => { set(`binary_sensor.${F}_food_low`, "on"); set(`binary_sensor.${F}_food_empty`, "on"); }),
+        jammed: feeder((set) => set(`binary_sensor.${F}_jammed`, "on")),
+        offline: offline(F),
+        settings: feeder(),
+      },
+    },
+    fountain: {
+      config: { type: "custom:brinstar-fountain-card", entity: `sensor.${W}_water_weight`, name: "Fountain", capacity_grams: 3000 },
+      cases: {
+        live: null,
+        "full, flowing": (set) => { set(`sensor.${W}_water_weight`, "2650"); set(`binary_sensor.${W}_water_low`, "off"); set(`binary_sensor.${W}_pump_running`, "on"); },
+        "needs water": (set) => { set(`sensor.${W}_water_weight`, "1180"); set(`binary_sensor.${W}_water_empty`, "on"); set(`binary_sensor.${W}_water_low`, "on"); set(`binary_sensor.${W}_pump_running`, "off"); },
+        "on battery, waiting": (set) => { set(`binary_sensor.${W}_power_adapter`, "off"); set(`sensor.${W}_battery`, "64"); set(`binary_sensor.${W}_pump_running`, "off"); },
+        "dry-run off, filter due": (set) => { set(`switch.${W}_dry_run_protection`, "off"); set(`binary_sensor.${W}_filter_due`, "on"); },
+        offline: offline(W),
+        settings: null,
+      },
+    },
+    litter: {
+      config: {
+        type: "custom:brinstar-litter-card", entity: `vacuum.${L}_litter_box`, name: "Litter box",
+        last_cycle: ids.find((id) => id.startsWith("input_datetime.") && id.includes("last_cycle")),
+        cats: [{ name: "Cat A", max_lb: 9 }, { name: "Cat B", max_lb: 12.5 }, { name: "Cat C" }],
+      },
+      cases: {
+        live: null,
+        cycling: (set) => { set(`vacuum.${L}_litter_box`, "cleaning"); set(`sensor.${L}_status_code`, "ccp"); },
+        "drawer full": (set) => { set(`sensor.${L}_waste_drawer`, "86"); set(`sensor.${L}_status_code`, "dfs"); },
+        "fault, laser dirty": (set) => { set(`sensor.${L}_status_code`, "csf"); set(laser, "on"); },
+        offline: offline(L),
+        settings: null,
+      },
+    },
+  };
+
+  const app = document.getElementById("app");
+  for (const [suite, { config, cases }] of Object.entries(SUITES)) {
+    if (q.get("only") && q.get("only") !== suite) continue;
+    app.insertAdjacentHTML("beforeend", `<h2>${suite}</h2><div class="grid" id="g-${suite}"></div>`);
+    for (const [label, mutate] of Object.entries(cases)) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.innerHTML = `<small>${label}</small>`;
+      const card = document.createElement(config.type.replace("custom:", ""));
+      card.setConfig(config);
+      card.hass = hassWith(mutate);
+      cell.append(card);
+      document.getElementById(`g-${suite}`).append(cell);
+      if (label === "settings") card.updateComplete.then(() => { card.settings = true; });
+    }
+  }
+</script>
+</body>
+</html>
