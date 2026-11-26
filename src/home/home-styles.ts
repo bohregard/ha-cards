@@ -18,6 +18,8 @@ export const homeStyles = css`
     --bp-well: color-mix(in srgb, var(--bp-text) 7%, var(--bp-card));
     --bp-radius: var(--ha-card-border-radius, 24px);
     display: block;
+    /* Fill the grid cell, so cards side by side in a sections row share one height. */
+    height: 100%;
     container-type: inline-size;
   }
   ha-card { position: relative; height: 100%; padding: 16px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
