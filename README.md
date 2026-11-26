@@ -130,7 +130,7 @@ navigation_path: /dashboard-home/pets    # optional
 
 ## Weather card
 
-Conditions from your own weather station, with a forecast entity for the condition and the hours ahead.
+Conditions from your own weather station, with a forecast entity for the condition and the hours ahead. It starts folded: the condition, temperature, feels-like and today's high, low and chance of rain. **Show details** opens the rest, and the history and hourly forecast load only then.
 
 - Temperature and feels-like, with today's high, low and chance of rain.
 - Humidity, wind (speed, direction arrow, gust and today's max gust), rain today and this week, pressure and whether it's rising or falling over 3 hours, UV and sunlight, dew point.
@@ -144,11 +144,12 @@ type: custom:brinstar-weather-card
 entity: sensor.station_temp
 weather: weather.home                    # optional, condition and forecast
 navigation_path: /dashboard-weather      # optional
+expanded: false                          # optional, start with the details open
 ```
 
 ## Energy card
 
-Whole-house power from a CT energy monitor such as a CircuitSetup meter on ESPHome.
+Whole-house power from a CT energy monitor such as a CircuitSetup meter on ESPHome. It starts folded: watts, amps and volts now and energy and cost today, plus a warning line if a leg passes 80% of the main breaker. **Show details** opens the rest, and the 24-hour chart loads only then.
 
 - Watts, amps and volts now; energy and cost so far today.
 - Each leg's current against the main breaker; amber from 80% and red from 95%.
@@ -171,6 +172,7 @@ circuits:                                # optional
   - { name: Dryer, power: sensor.dryer_watts }
 top: 6                                   # optional, circuits listed before the rest fold into one row
 navigation_path: /energy                 # optional
+expanded: false                          # optional, start with the details open
 ```
 
 ## Development

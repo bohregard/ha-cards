@@ -70,6 +70,22 @@ export const homeStyles = css`
   .axis { display: flex; justify-content: space-between; font-size: 0.7rem; font-weight: 500; color: var(--bp-muted); }
   .empty { color: var(--bp-muted); font-size: 0.85rem; padding: 8px 0; }
 
+  /* fold: shut by default, opened by the button under the card */
+  .fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.32s cubic-bezier(0.16, 1, 0.3, 1), margin 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+  .fold:not(.open) { margin-top: -14px; }
+  .fold.open { grid-template-rows: 1fr; }
+  .fold-inner { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 14px; }
+  .expand {
+    align-self: center; display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 10px 0 14px;
+    border: 1px solid var(--bp-line); border-radius: 18px; background: none; color: var(--bp-muted);
+    font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; --mdc-icon-size: 18px;
+  }
+  .expand:hover { color: var(--bp-text); border-color: color-mix(in srgb, var(--bp-muted) 50%, var(--bp-line)); }
+  .expand:focus-visible { outline: 2px solid var(--bp-lamp); outline-offset: 2px; }
+  .expand ha-icon { transition: transform 0.25s ease; }
+  .expand[aria-expanded="true"] ha-icon { transform: rotate(180deg); }
+  @media (prefers-reduced-motion: reduce) { .fold, .expand ha-icon { transition: none; } }
+
   .meter { height: 8px; border-radius: 4px; background: var(--bp-well); overflow: hidden; }
   .meter i { display: block; height: 100%; border-radius: 4px; background: var(--bp-muted); transition: width 0.4s ease; }
   .meter.warn i { background: var(--bp-amber); }
