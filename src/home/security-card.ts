@@ -154,8 +154,10 @@ export class BrinstarSecurityCard extends BaseCard<SecurityCardConfig> {
       <div class="body">
         <div class="title">
           <span class="ico ${verdict.tone === "ok" ? "ok" : "bad"}"><ha-icon icon=${verdict.tone === "ok" ? "mdi:shield-check" : "mdi:shield-alert"}></ha-icon></span>
-          <span class="name">${c.name ?? "Security"}</span>
-          <span class="aside ${verdict.tone === "ok" ? "secure" : "tone-error"}">${verdict.text}</span>
+          ${c.name
+            ? html`<span class="name">${c.name}</span>
+                <span class="aside ${verdict.tone === "ok" ? "secure" : "tone-error"}">${verdict.text}</span>`
+            : html`<span class="name ${verdict.tone === "ok" ? "secure" : "tone-error"}">${verdict.text}</span>`}
         </div>
         <div class="rows">${rows}</div>
         ${line
