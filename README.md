@@ -1,6 +1,6 @@
 # HA Cards
 
-Custom Home Assistant dashboard cards: a Dreame vacuum, ESPHome cat feeders, a scale-based water fountain, a Litter-Robot, and Home-screen cards for rooms, pets, a weather station and a CT energy monitor. Install through the Marketplace (HACS) as a custom **Dashboard** repository. All cards are in one bundle.
+Custom Home Assistant dashboard cards: a Dreame vacuum, ESPHome cat feeders, a scale-based water fountain, a Litter-Robot, and Home-screen cards for rooms, pets, security, a weather station and a CT energy monitor. Install through the Marketplace (HACS) as a custom **Dashboard** repository. All cards are in one bundle.
 
 Each card takes one `entity` and finds the rest from that entity's device (by translation key, or by the end of the entity id for ESPHome devices).
 
@@ -126,6 +126,28 @@ feeders:                                 # optional, any entity of each feeder
 fountain: sensor.cat_fountain_water_weight  # optional
 capacity_grams: 3000                     # optional
 navigation_path: /dashboard-home/pets    # optional
+```
+
+## Security card
+
+The alarm, the locks, garage doors and every door and window on one card.
+
+- **Headline:** "All secure", or the worst problem and how many more there are (triggered, unlocked or jammed, open, offline, open doors and windows).
+- **Alarm:** its state and how long it's been that way. Disarmed offers **Arm home** and **Arm away**; armed offers **Disarm**.
+- **Each lock and garage door:** its state and how long, and only its next action.
+- **Taps:** the safe direction (lock, close, arm home) takes one tap. Unlock, open, arm away and disarm take a second tap within 4 seconds; the button reads "Tap again to unlock" in between.
+- **Offline:** an offline device is a problem, never secure. A garage door can name a door sensor to report while its opener is offline ("Offline · exterior door closed").
+- **Doors and windows:** one line, "All 16 doors and windows closed", or the open ones by name.
+
+```yaml
+type: custom:brinstar-security-card
+alarm: alarm_control_panel.home          # optional
+locks:                                   # optional
+  - { entity: lock.front_door, name: Front door }
+covers:                                  # optional, garage doors
+  - { entity: cover.garage_door, name: Garage door, fallback: binary_sensor.garage_side_door, fallback_name: side door }
+contacts:                                # optional, every door and window
+  - { entity: binary_sensor.patio_door, name: Patio door }
 ```
 
 ## Weather card

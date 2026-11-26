@@ -2,7 +2,6 @@ import { state } from "lit/decorators.js";
 import { BaseCard } from "../lib/base-card";
 import { findOnDevice } from "../lib/entities";
 
-export const CONFIRM_MS = 4000;
 
 export interface PetCardConfig {
   type: string;
@@ -12,18 +11,10 @@ export interface PetCardConfig {
 
 /**
  * What the feeder, fountain and litter cards add to `BaseCard`: sibling lookup on the
- * device, the two-tap confirm and a settings view toggle.
+ * device and a settings view toggle.
  */
 export abstract class PetCard<C extends PetCardConfig> extends BaseCard<C> {
-  /** The action waiting for its second tap. */
-  @state() protected confirming?: string;
   @state() protected settings = false;
-  private confirmTimer?: number;
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    window.clearTimeout(this.confirmTimer);
-  }
 
   protected sib(domain: string, key: string): string | undefined {
     if (!this.hass?.entities || !this.config) return undefined;
@@ -40,19 +31,6 @@ export abstract class PetCard<C extends PetCardConfig> extends BaseCard<C> {
   private sibCache = new Map<string, string | undefined>();
   private sibSource?: object;
   private sibAnchor?: string;
-
-  /** First tap arms `key` for 4 s; a second tap runs it. */
-  protected confirm(key: string, run: () => void) {
-    if (this.confirming !== key) {
-      window.clearTimeout(this.confirmTimer);
-      this.confirming = key;
-      this.confirmTimer = window.setTimeout(() => (this.confirming = undefined), CONFIRM_MS);
-      return;
-    }
-    window.clearTimeout(this.confirmTimer);
-    this.confirming = undefined;
-    run();
-  }
 
   protected setNumber(id: string | undefined, value: number) {
     if (id) this.call("number", "set_value", { entity_id: id, value });

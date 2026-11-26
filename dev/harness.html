@@ -8,7 +8,7 @@
   Visual harness for the pet cards. Serve the repo root over HTTP (python3 -m http.server)
   and open /dev/harness.html. Needs dev/fixture.json (recorded from a real Home Assistant,
   git-ignored) and a built dist/brinstar-cards.js.
-  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter|rooms|pets|weather|energy
+  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter|rooms|pets|weather|energy|security
   The Home cards (rooms, pets, weather, energy) also need dev/fixture-home.json, written by the
   workspace's recorder with that house's card configs; it is merged over fixture.json.
 -->
@@ -220,6 +220,24 @@
         "one leg loaded": (set) => { set(E.legs[0].current, "131"); set(E.legs[1].current, "18"); },
       },
     };
+    const Sc = C.security;
+    if (Sc) {
+      const L = Sc.locks ?? [], G = Sc.covers ?? [], K = Sc.contacts ?? [];
+      SUITES.security = {
+        config: Sc,
+        cases: {
+          live: null,
+          "front door unlocked": (set) => set(L[0].entity, "unlocked"),
+          "garage open": (set) => set(G[0].entity, "open"),
+          "armed away": (set) => set(Sc.alarm, "armed_away"),
+          triggered: (set) => { set(Sc.alarm, "triggered"); set(L[0].entity, "unlocked"); },
+          "lock jammed, other locking": (set) => { set(L[L.length - 1].entity, "jammed"); set(L[0].entity, "locking"); },
+          "garage offline (fallback)": (set) => set(G[0].entity, "unavailable"),
+          "two windows open": (set) => K.slice(-2).forEach((k) => set(k.entity, "on")),
+          "four open": (set) => K.slice(0, 4).forEach((k) => set(k.entity, "on")),
+        },
+      };
+    }
   }
 
   const app = document.getElementById("app");

@@ -3,6 +3,7 @@ import { property, state } from "lit/decorators.js";
 import type { Hass, HassEntity } from "./hass";
 
 const NO_READING = ["unavailable", "unknown", ""];
+export const CONFIRM_MS = 4000;
 const REFRESH_MS = 5 * 60_000;
 
 export interface CardConfig {
@@ -17,6 +18,9 @@ export interface CardConfig {
 export abstract class BaseCard<C extends CardConfig> extends LitElement {
   @property({ attribute: false }) hass?: Hass;
   @state() protected config?: C;
+  /** The action waiting for its second tap. */
+  @state() protected confirming?: string;
+  private confirmTimer?: number;
   private refreshTimer?: number;
   private loadedKey?: string;
   private loading = false;
@@ -47,6 +51,20 @@ export abstract class BaseCard<C extends CardConfig> extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearInterval(this.refreshTimer);
+    window.clearTimeout(this.confirmTimer);
+  }
+
+  /** First tap arms `key` for 4 s; a second tap runs it. */
+  protected confirm(key: string, run: () => void) {
+    if (this.confirming !== key) {
+      window.clearTimeout(this.confirmTimer);
+      this.confirming = key;
+      this.confirmTimer = window.setTimeout(() => (this.confirming = undefined), CONFIRM_MS);
+      return;
+    }
+    window.clearTimeout(this.confirmTimer);
+    this.confirming = undefined;
+    run();
   }
 
   protected shouldUpdate(changed: PropertyValues): boolean {
