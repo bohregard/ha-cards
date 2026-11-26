@@ -1,3 +1,7 @@
+import { BrinstarEnergyCard } from "./home/energy-card";
+import { BrinstarPetsCard } from "./home/pets-card";
+import { BrinstarRoomCard } from "./home/room-card";
+import { BrinstarWeatherCard } from "./home/weather-card";
 import { BrinstarFeederCard } from "./pets/feeder-card";
 import { BrinstarFountainCard } from "./pets/fountain-card";
 import { BrinstarLitterCard } from "./pets/litter-card";
@@ -28,6 +32,10 @@ const CARDS: [string, CustomElementConstructor, string, string][] = [
     "Water level, pump state, water used per day and filter for a scale-based ESPHome water fountain.",
   ],
   ["brinstar-litter-card", BrinstarLitterCard, "Brinstar Litter Card", "Litter and drawer levels, weight and visits per cat, and settings for a Litter-Robot."],
+  ["brinstar-room-card", BrinstarRoomCard, "Brinstar Room Card", "A room at a glance: its main light, temperature, humidity, what Frigate sees now and the air."],
+  ["brinstar-pets-card", BrinstarPetsCard, "Brinstar Pets Card", "Litter box, feeders and fountain on one card, problems first."],
+  ["brinstar-weather-card", BrinstarWeatherCard, "Brinstar Weather Card", "Conditions from your own weather station, the last 24 hours and the next hours."],
+  ["brinstar-energy-card", BrinstarEnergyCard, "Brinstar Energy Card", "Whole-house power, amps, legs, today's energy and the circuits using it, from a CT energy monitor."],
 ];
 
 window.customCards = window.customCards ?? [];

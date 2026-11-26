@@ -21,18 +21,28 @@ interface CompressedRow {
 interface StatisticsRow {
   start: number;
   mean?: number | null;
+  min?: number | null;
+  max?: number | null;
+  /** The last state in the period; all HA keeps for running totals (state_class total). */
+  state?: number | null;
 }
+
+export type StatisticField = "mean" | "min" | "max" | "state";
 
 /** Rows of `history/history_during_period` (compressed format) for one entity. */
 export function parseHistory(resp: Record<string, CompressedRow[]>, entityId: string): StatePoint[] {
   return (resp[entityId] ?? []).map((r) => ({ t: Math.round((r.lc ?? r.lu) * 1000), s: r.s }));
 }
 
-/** Rows of `recorder/statistics_during_period` for one statistic, keeping those with a mean. */
-export function parseStatistics(resp: Record<string, StatisticsRow[]>, statisticId: string): ValuePoint[] {
+/** Rows of `recorder/statistics_during_period` for one statistic, keeping those with the field (mean by default). */
+export function parseStatistics(
+  resp: Record<string, StatisticsRow[]>,
+  statisticId: string,
+  field: StatisticField = "mean",
+): ValuePoint[] {
   return (resp[statisticId] ?? [])
-    .filter((r) => typeof r.mean === "number")
-    .map((r) => ({ t: r.start, v: r.mean as number }));
+    .filter((r) => typeof r[field] === "number")
+    .map((r) => ({ t: r.start, v: r[field] as number }));
 }
 
 /** When a binary sensor turned on. A sensor already on at the start of the window doesn't count. */
@@ -98,13 +108,14 @@ export async function fetchHistory(
   return Object.fromEntries(ids.map((id) => [id, parseHistory(resp ?? {}, id)]));
 }
 
-/** Long-term (hourly) or short-term (5-minute) statistics means for some sensors. */
+/** Long-term (hourly) or short-term (5-minute) statistics for some sensors: the mean, or `field`. */
 export async function fetchStatistics(
   hass: Pick<Hass, "callWS">,
   ids: string[],
   start: number,
   end: number,
   period: "5minute" | "hour",
+  field: StatisticField = "mean",
 ): Promise<Record<string, ValuePoint[]>> {
   const resp = await hass.callWS<Record<string, StatisticsRow[]>>({
     type: "recorder/statistics_during_period",
@@ -112,7 +123,7 @@ export async function fetchStatistics(
     end_time: iso(end),
     statistic_ids: ids,
     period,
-    types: ["mean"],
+    types: [field],
   });
-  return Object.fromEntries(ids.map((id) => [id, parseStatistics(resp ?? {}, id)]));
+  return Object.fromEntries(ids.map((id) => [id, parseStatistics(resp ?? {}, id, field)]));
 }
