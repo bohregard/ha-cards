@@ -132,7 +132,7 @@ navigation_path: /dashboard-home/pets    # optional
 
 The alarm, the locks, garage doors and every door and window on one card.
 
-- **Headline:** "All secure", or the worst problem and how many more there are (triggered, unlocked or jammed, open, offline, open doors and windows).
+- **Headline:** "All secure", or the worst problem and how many more there are (triggered, unlocked or jammed, open, offline, open doors and windows). With `name` set, the name leads and the verdict sits beside it.
 - **Alarm:** its state and how long it's been that way. Disarmed offers **Arm home** and **Arm away**; armed offers **Disarm**.
 - **Each lock and garage door:** its state and how long, and only its next action.
 - **Taps:** the safe direction (lock, close, arm home) takes one tap. Unlock, open, arm away and disarm take a second tap within 4 seconds; the button reads "Tap again to unlock" in between.
@@ -141,6 +141,7 @@ The alarm, the locks, garage doors and every door and window on one card.
 
 ```yaml
 type: custom:brinstar-security-card
+name: Security                           # optional; without it the verdict is the headline
 alarm: alarm_control_panel.home          # optional
 locks:                                   # optional
   - { entity: lock.front_door, name: Front door }
