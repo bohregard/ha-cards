@@ -14,6 +14,8 @@ export interface ValuePoint {
 
 interface CompressedRow {
   s: string;
+  /** Attributes, when they were asked for. */
+  a?: Record<string, unknown>;
   lu: number;
   lc?: number;
 }
@@ -106,6 +108,29 @@ export async function fetchHistory(
     include_start_time_state: includeStart,
   });
   return Object.fromEntries(ids.map((id) => [id, parseHistory(resp ?? {}, id)]));
+}
+
+/**
+ * One entity's history rows with their attributes (e.g. a thermostat's temperature and action),
+ * including the state it had when the window began.
+ */
+export async function fetchRowsWithAttributes(
+  hass: Pick<Hass, "callWS">,
+  id: string,
+  start: number,
+  end: number,
+): Promise<CompressedRow[]> {
+  const resp = await hass.callWS<Record<string, CompressedRow[]>>({
+    type: "history/history_during_period",
+    start_time: iso(start),
+    end_time: iso(end),
+    entity_ids: [id],
+    minimal_response: false,
+    no_attributes: false,
+    significant_changes_only: false,
+    include_start_time_state: true,
+  });
+  return resp?.[id] ?? [];
 }
 
 /** Long-term (hourly) or short-term (5-minute) statistics for some sensors: the mean, or `field`. */

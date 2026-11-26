@@ -8,7 +8,7 @@
   Visual harness for the pet cards. Serve the repo root over HTTP (python3 -m http.server)
   and open /dev/harness.html. Needs dev/fixture.json (recorded from a real Home Assistant,
   git-ignored) and a built dist/brinstar-cards.js.
-  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter|rooms|pets|weather|energy|security|lights
+  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter|rooms|pets|weather|energy|security|lights|climate
   The Home cards (rooms, pets, weather, energy) also need dev/fixture-home.json, written by the
   workspace's recorder with that house's card configs; it is merged over fixture.json.
 -->
@@ -26,7 +26,7 @@
     --primary-background-color: #f4efe6; --ha-card-background: #fffcf7; --card-background-color: #fffcf7;
     --ha-card-border-color: #e6ddce; --ha-card-box-shadow: 0 1px 2px rgba(51,36,17,.05), 0 6px 16px rgba(51,36,17,.05);
     --divider-color: #e2d9ca; --primary-text-color: #221c15; --secondary-text-color: #62584c; --primary-color: #9e5d0a;
-    --text-primary-color: #fffcf7; --state-fan-on-color: #167c88; --success-color: #3d7a4e;
+    --text-primary-color: #fffcf7; --state-fan-on-color: #167c88; --state-light-on-color: #c47a12; --success-color: #3d7a4e;
     --warning-color: #c47a12; --error-color: #c2412a;
   }
   body { margin: 0; padding: 16px; background: var(--primary-background-color); color: var(--primary-text-color);
@@ -88,7 +88,7 @@
   // Cards navigate with pushState; log it instead of leaving the harness.
   history.pushState = (_s, _t, url) => log(`navigate ${url}`);
 
-  function hassWith(mutate) {
+  function hassWith(mutate, extraReplies = {}) {
     const states = Object.fromEntries(fx.states.map((s) => [s.entity_id, structuredClone(s)]));
     const set = (id, state, attrs) => { if (states[id]) { states[id].state = state; Object.assign(states[id].attributes, attrs ?? {}); states[id].last_changed = new Date().toISOString(); } };
     mutate?.(set, states);
@@ -103,7 +103,7 @@
         if (msg.type === "call_service") return fx.replies[`forecast|${msg.target?.entity_id}|${msg.service_data?.type}`] ?? {};
         const ids = (msg.entity_ids ?? msg.statistic_ids ?? []).slice().sort().join(",");
         const key = `${msg.type.startsWith("history") ? "history" : "statistics"}|${ids}`;
-        return fx.replies[key] ?? {};
+        return extraReplies[key] ?? fx.replies[key] ?? {};
       },
     };
   }
@@ -239,6 +239,37 @@
         },
       };
     }
+    const Cl = C.climate;
+    if (Cl) {
+      const T = Cl.entity, F = Cl.fans ?? [], P = Cl.power ?? [];
+      // A made-up day: cooling through the afternoon, the target lowered from 75 to 73 this morning.
+      const day = () => {
+        const now = Date.now() / 1000, rows = [];
+        for (let i = 0; i <= 48; i++) {
+          const t = now - 86400 + i * 1800, h = new Date(t * 1000).getHours();
+          rows.push({ s: "cool", lu: t, a: { current_temperature: Math.round(73 + 2.5 * Math.sin((i / 48) * 2 * Math.PI)), temperature: i < 30 ? 75 : 73, hvac_action: h >= 13 && h < 17 ? "cooling" : "idle" } });
+        }
+        return { [`history|${T}`]: { [T]: rows } };
+      };
+      const cooling = (set) => { set(T, "cool", { hvac_action: "cooling", temperature: 73, current_temperature: 76 }); set(P[0], "2350"); };
+      SUITES.climate = {
+        config: Cl,
+        cases: {
+          live: null,
+          cooling,
+          heating: (set) => { set(T, "heat", { hvac_action: "heating", temperature: 68, current_temperature: 65 }); set(P[1], "1180"); },
+          "heat/cool, idle": (set) => set(T, "heat_cool", { hvac_action: "idle", temperature: null, target_temp_low: 68, target_temp_high: 76 }),
+          off: (set) => set(T, "off", { hvac_action: "off" }),
+          "thermostat offline": (set) => set(T, "unavailable"),
+          "fans mixed": (set) => {
+            set(F[0].entity, "off", { percentage: 0 }); set(F[1].entity, "on", { percentage: 33 });
+            set(F[2].entity, "on", { percentage: 66 }); set(F[3].entity, "unavailable");
+          },
+          "expanded, cooled today": { config: { ...Cl, expanded: true }, replies: day(), mutate: (set) => { cooling(set); set(T, "cool", { fan_mode: "on", preset_mode: "eco" }); } },
+          "expanded, recorded day": { config: { ...Cl, expanded: true } },
+        },
+      };
+    }
     const Sc = C.security;
     if (Sc) {
       const L = Sc.locks ?? [], G = Sc.covers ?? [], K = Sc.contacts ?? [];
@@ -264,14 +295,14 @@
     if (q.get("only") && q.get("only") !== suite) continue;
     app.insertAdjacentHTML("beforeend", `<h2>${suite}</h2><div class="grid" id="g-${suite}"></div>`);
     for (const [label, spec] of Object.entries(cases)) {
-      const { config: cfg = config, mutate } = spec && typeof spec === "object" ? spec : { mutate: spec };
+      const { config: cfg = config, mutate, replies } = spec && typeof spec === "object" ? spec : { mutate: spec };
       const cell = document.createElement("div");
       cell.className = "cell";
       if (w && !q.get("w")) cell.style.width = `${w}px`;
       cell.innerHTML = `<small>${label}</small>`;
       const card = document.createElement(cfg.type.replace("custom:", ""));
       card.setConfig(cfg);
-      card.hass = hassWith(mutate);
+      card.hass = hassWith(mutate, replies);
       cell.append(card);
       document.getElementById(`g-${suite}`).append(cell);
       if (label === "settings") card.updateComplete.then(() => { card.settings = true; });

@@ -40,6 +40,27 @@ export function linePath(points: ValuePoint[], b: LineBox): string {
     .join("");
 }
 
+/**
+ * SVG path for a stepped value held over spans (e.g. a thermostat's target): flat across each
+ * span, a vertical step where spans touch, and a gap where they don't. Clipped to the box's time range.
+ */
+export function stepPath(spans: { t0: number; t1: number; v: number }[], b: LineBox): string {
+  const span = b.t1 - b.t0 || 1;
+  const range = b.v1 - b.v0;
+  const x = (t: number) => r(((t - b.t0) / span) * b.w);
+  const y = (v: number) => r(range === 0 ? b.h / 2 : b.h - ((v - b.v0) / range) * b.h);
+  let d = "";
+  let lastEnd: number | undefined;
+  for (const s of spans) {
+    const t0 = Math.max(s.t0, b.t0);
+    const t1 = Math.min(s.t1, b.t1);
+    if (t1 <= t0) continue;
+    d += `${lastEnd === t0 ? "L" : "M"}${x(t0)},${y(s.v)}L${x(t1)},${y(s.v)}`;
+    lastEnd = t1;
+  }
+  return d;
+}
+
 /** Bars for one series, scaled to its largest value. */
 export function barRects(values: number[], b: BarBox): Rect[] {
   return stackedRects([values], b)[0];

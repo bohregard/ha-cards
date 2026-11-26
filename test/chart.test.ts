@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { barRects, linePath, stackedRects } from "../src/lib/chart";
+import { barRects, linePath, stackedRects, stepPath } from "../src/lib/chart";
 
 describe("linePath", () => {
   it("maps time to x and value to y (y grows downwards)", () => {
@@ -57,5 +57,37 @@ describe("stackedRects", () => {
         { x: 55, y: 0, w: 45, h: 40 },
       ],
     ]);
+  });
+});
+
+describe("stepPath", () => {
+  const box = { w: 100, h: 50, t0: 0, t1: 10, v0: 0, v1: 10 };
+
+  it("holds each value flat and steps between touching segments", () => {
+    const segs = [
+      { t0: 0, t1: 5, v: 10 },
+      { t0: 5, t1: 10, v: 0 },
+    ];
+    expect(stepPath(segs, box)).toBe("M0,0L50,0L50,50L100,50");
+  });
+
+  it("lifts the pen over a gap", () => {
+    const segs = [
+      { t0: 0, t1: 2, v: 5 },
+      { t0: 6, t1: 10, v: 5 },
+    ];
+    expect(stepPath(segs, box)).toBe("M0,25L20,25M60,25L100,25");
+  });
+
+  it("clips segments to the window and drops ones outside it", () => {
+    const segs = [
+      { t0: -5, t1: -1, v: 5 },
+      { t0: -5, t1: 15, v: 5 },
+    ];
+    expect(stepPath(segs, box)).toBe("M0,25L100,25");
+  });
+
+  it("is empty with nothing to draw", () => {
+    expect(stepPath([], box)).toBe("");
   });
 });

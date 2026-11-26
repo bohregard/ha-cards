@@ -66,6 +66,10 @@ export const homeStyles = css`
   .chart .line { fill: none; stroke: var(--bp-muted); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
   .chart .area { fill: color-mix(in srgb, var(--bp-muted) 14%, transparent); stroke: none; }
   .chart .rain { fill: color-mix(in srgb, var(--bp-active) 60%, transparent); }
+  .chart .target { fill: none; stroke: var(--bp-text); stroke-opacity: 0.5; stroke-width: 1.5; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+  .chart .strip { fill: var(--bp-well); }
+  .chart .run.cool { fill: var(--bp-active); }
+  .chart .run.heat { fill: var(--bp-lamp); }
   .chart .grid { stroke: var(--bp-line); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
   .axis { display: flex; justify-content: space-between; font-size: 0.7rem; font-weight: 500; color: var(--bp-muted); }
   .empty { color: var(--bp-muted); font-size: 0.85rem; padding: 8px 0; }

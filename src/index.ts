@@ -1,5 +1,6 @@
 import { BrinstarEnergyCard } from "./home/energy-card";
 import { BrinstarLightsCard } from "./home/lights-card";
+import { BrinstarClimateCard } from "./home/climate-card";
 import { BrinstarPetsCard } from "./home/pets-card";
 import { BrinstarRoomCard } from "./home/room-card";
 import { BrinstarSecurityCard } from "./home/security-card";
@@ -38,6 +39,7 @@ const CARDS: [string, CustomElementConstructor, string, string][] = [
   ["brinstar-pets-card", BrinstarPetsCard, "Brinstar Pets Card", "Litter box, feeders and fountain on one card, problems first."],
   ["brinstar-weather-card", BrinstarWeatherCard, "Brinstar Weather Card", "Conditions from your own weather station, the last 24 hours and the next hours."],
   ["brinstar-lights-card", BrinstarLightsCard, "Brinstar Lights Card", "The lights that are on, with switches, brightness and All off, and favourites to turn on."],
+  ["brinstar-climate-card", BrinstarClimateCard, "Brinstar Climate Card", "The thermostat and fans: what it's doing, target, mode, fan speeds and the last 24 hours."],
   ["brinstar-security-card", BrinstarSecurityCard, "Brinstar Security Card", "Alarm, locks, garage doors and every door and window; unsafe actions take a second tap."],
   ["brinstar-energy-card", BrinstarEnergyCard, "Brinstar Energy Card", "Whole-house power, amps, legs, today's energy and the circuits using it, from a CT energy monitor."],
 ];

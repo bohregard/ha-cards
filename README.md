@@ -168,6 +168,28 @@ contacts:                                # optional, every door and window
   - { entity: binary_sensor.patio_door, name: Patio door }
 ```
 
+## Climate card
+
+A thermostat and the fans on one card.
+
+- **Headline:** what it's doing now ("Cooling to 75°", "Heating to 68°"), or when it will start ("Idle · cools above 75°", "Idle · keeps 68–75°"). While it runs, the `power` sensors' total shows beside it. The icon is teal while cooling and amber while heating.
+- **Now:** the inside temperature and humidity from the thermostat, and the `outside` temperature.
+- **Target:** − and + step by the thermostat's `target_temp_step` (1° in °F, 0.5° in °C), within its range. Taps collect for a moment and go out as one `climate.set_temperature`. In heat/cool there's a stepper for each end, and the range can't cross itself.
+- **Mode:** Off · Cool · Heat · Auto (heat/cool), from the thermostat's modes.
+- **Fans:** each fan with its room's temperature and **Off · Low · Med · High** buttons, from the fan's `percentage_step`. A fan without speeds gets Off · On. The icon spins while the fan is on, faster at higher speeds, and holds still with reduced motion.
+- **Show details:** the last 24 hours (inside temperature, the target and when it cooled or heated, from the thermostat's history) and **Circulate fan** and **Eco** switches when the thermostat has them.
+
+```yaml
+type: custom:brinstar-climate-card
+entity: climate.thermostat
+outside: sensor.outdoor_temperature        # optional
+power: [sensor.ac_power, sensor.furnace_power]   # optional
+fans:                                      # optional
+  - { entity: fan.living_room, name: Living Room, temperature: sensor.living_room_temperature }
+  - { entity: fan.bedroom, name: Bedroom, temperature: sensor.bedroom_temperature }
+expanded: false                            # optional; start with the details open
+```
+
 ## Weather card
 
 Conditions from your own weather station, with a forecast entity for the condition and the hours ahead. It starts folded: the condition, temperature, feels-like and today's high, low and chance of rain. **Show details** opens the rest, and the history and hourly forecast load only then.
