@@ -1,6 +1,6 @@
 # HA Cards
 
-Custom Home Assistant dashboard cards: a Dreame vacuum, ESPHome cat feeders, a scale-based water fountain, a Litter-Robot, and Home-screen cards for rooms, pets, security, a weather station and a CT energy monitor. Install through the Marketplace (HACS) as a custom **Dashboard** repository. All cards are in one bundle.
+Custom Home Assistant dashboard cards: a Dreame vacuum, ESPHome cat feeders, a scale-based water fountain, a Litter-Robot, and Home-screen cards for rooms, lights, pets, security, a weather station and a CT energy monitor. Install through the Marketplace (HACS) as a custom **Dashboard** repository. All cards are in one bundle.
 
 Each card takes one `entity` and finds the rest from that entity's device (by translation key, or by the end of the entity id for ESPHome devices).
 
@@ -126,6 +126,23 @@ feeders:                                 # optional, any entity of each feeder
 fountain: sensor.cat_fountain_water_weight  # optional
 capacity_grams: 3000                     # optional
 navigation_path: /dashboard-home/pets    # optional
+```
+
+## Lights card
+
+The lights that are on, and the favourites that aren't.
+
+- **Headline:** "2 lights on" or "All lights off". **All off** switches off every light on the card, plus any `all_off_extra` entities, in one tap.
+- **Each light that's on:** its area's icon, a switch to turn it off, and for dimmers a brightness slider with the level shown as a fill.
+- **Turn on:** favourites that are off, as one-tap buttons with their area's icon.
+
+```yaml
+type: custom:brinstar-lights-card
+lights:                                  # every light, in the order to list them
+  - { entity: light.living_room, name: Living Room, icon: mdi:sofa }
+  - { entity: light.kitchen, name: Kitchen, icon: mdi:fridge-outline }
+favourites: [light.living_room, light.kitchen]   # optional
+all_off_extra: [switch.display_lights]           # optional
 ```
 
 ## Security card
