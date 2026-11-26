@@ -8,7 +8,9 @@
   Visual harness for the pet cards. Serve the repo root over HTTP (python3 -m http.server)
   and open /dev/harness.html. Needs dev/fixture.json (recorded from a real Home Assistant,
   git-ignored) and a built dist/brinstar-cards.js.
-  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter
+  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter|rooms|pets|weather|energy
+  The Home cards (rooms, pets, weather, energy) also need dev/fixture-home.json, written by the
+  workspace's recorder with that house's card configs; it is merged over fixture.json.
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
@@ -74,7 +76,17 @@
 
   await import(`../dist/brinstar-cards.js?${Date.now()}`);
   const fx = await (await fetch("./fixture.json", { cache: "no-store" })).json();
+  const home = await fetch("./fixture-home.json", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  if (home) {
+    const byId = Object.fromEntries(fx.states.map((s) => [s.entity_id, s]));
+    for (const s of home.states) byId[s.entity_id] = s;
+    fx.states = Object.values(byId);
+    fx.entities = { ...fx.entities, ...home.entities };
+    fx.replies = { ...fx.replies, ...home.replies };
+  }
   const log = (m) => { const el = document.getElementById("log"); el.textContent = `${new Date().toLocaleTimeString()} ${m}\n` + el.textContent.slice(0, 600); };
+  // Cards navigate with pushState; log it instead of leaving the harness.
+  history.pushState = (_s, _t, url) => log(`navigate ${url}`);
 
   function hassWith(mutate) {
     const states = Object.fromEntries(fx.states.map((s) => [s.entity_id, structuredClone(s)]));
@@ -88,6 +100,7 @@
       hassUrl: (p) => p,
       callService: async (d, s, data) => log(`${d}.${s} ${JSON.stringify(data)}`),
       callWS: async (msg) => {
+        if (msg.type === "call_service") return fx.replies[`forecast|${msg.target?.entity_id}|${msg.service_data?.type}`] ?? {};
         const ids = (msg.entity_ids ?? msg.statistic_ids ?? []).slice().sort().join(",");
         const key = `${msg.type.startsWith("history") ? "history" : "statistics"}|${ids}`;
         return fx.replies[key] ?? {};
@@ -148,16 +161,79 @@
     },
   };
 
+  // Home cards: configs come from the recording (this house's rooms and sensors).
+  if (home?.configs) {
+    const C = home.configs;
+    const room = (name) => C.rooms.find((r) => r.name === name) ?? C.rooms[0];
+    const seen = (cams, objs) => (set) => cams.forEach((c) => objs.forEach((o) => set(`binary_sensor.${c}_${o}_occupancy`, "on")));
+    const firstWith = (key) => C.rooms.find((r) => r[key]);
+    const air = firstWith("pm25") ?? firstWith("voc");
+    const lit = C.rooms.find((r) => r.frigate && r.light) ?? C.rooms[0];
+    SUITES.rooms = {
+      w: 180,
+      cases: {
+        ...Object.fromEntries(C.rooms.map((r) => [r.name, { config: r }])),
+        "person and cat seen": { config: lit, mutate: seen(lit.frigate ?? [], ["person", "cat"]) },
+        "person seen": { config: lit, mutate: seen((lit.frigate ?? []).slice(0, 1), ["person"]) },
+        "poor air": { config: air, mutate: (set) => { if (air.pm25) set(air.pm25, "41"); if (air.voc) set(air.voc, "280"); } },
+        "light off": { config: lit, mutate: (set) => (lit.lights ?? [lit.light]).forEach((id) => set(id, "off")) },
+        "light offline": { config: lit, mutate: (set) => set(lit.light, "unavailable") },
+        "no sensors": { config: { type: "custom:brinstar-room-card", name: "Closet", icon: "mdi:hanger", light: lit.light } },
+      },
+    };
+    const P = C.pets;
+    const F0 = P.feeders?.[0]?.entity.replace(/^sensor\.(.+)_last_fed$/, "$1");
+    const Wt = P.fountain?.replace(/^sensor\.(.+)_water_weight$/, "$1");
+    const Lb = P.litter?.replace(/^vacuum\.(.+)_litter_box$/, "$1");
+    SUITES.pets = {
+      config: P,
+      cases: {
+        live: null,
+        "all fine": (set) => { set(`sensor.${Lb}_waste_drawer`, "30"); set(`sensor.${Lb}_status_code`, "rdy"); set(`sensor.${Wt}_water_weight`, "2600"); },
+        "drawer full, feeder jammed": (set) => { set(`sensor.${Lb}_waste_drawer`, "88"); set(`sensor.${Lb}_status_code`, "dfs"); set(`binary_sensor.${F0}_jammed`, "on"); },
+        "fountain empty": (set) => { set(`sensor.${Wt}_water_weight`, "1150"); set(`binary_sensor.${Wt}_water_empty`, "on"); set(`binary_sensor.${Wt}_water_low`, "on"); set(`binary_sensor.${Wt}_pump_running`, "off"); },
+        "litter box offline": (set) => set(P.litter, "unavailable"),
+      },
+    };
+    const stationStem = C.weather.entity.replace(/_[^_]+$/, "");
+    const S = (k) => `${stationStem}_${k}`;
+    SUITES.weather = {
+      config: C.weather,
+      cases: {
+        live: null,
+        storm: (set) => {
+          set(C.weather.weather, "lightning-rainy");
+          [["dailyrain", "2.14"], ["weeklyrain", "3.02"], ["windspeed", "28"], ["windgust", "46"], ["maxdailygust", "52"], ["winddir", "210"], ["humidity", "96"], ["baromrel", "29.31"]].forEach(([k, v]) => set(S(k), v));
+        },
+      },
+    };
+    const E = C.energy;
+    SUITES.energy = {
+      config: E,
+      cases: {
+        live: null,
+        "heavy load": (set) => {
+          set(E.power, "11800"); set(E.current, "98.4"); set(E.legs[0].current, "52.1"); set(E.legs[1].current, "46.3");
+          const c = Object.fromEntries(E.circuits.map((x) => [x.name, x.power]));
+          set(c.AC, "4200"); set(c.Dryer, "5200"); set(c.Range, "1800");
+        },
+        "one leg loaded": (set) => { set(E.legs[0].current, "131"); set(E.legs[1].current, "18"); },
+      },
+    };
+  }
+
   const app = document.getElementById("app");
-  for (const [suite, { config, cases }] of Object.entries(SUITES)) {
+  for (const [suite, { config, cases, w }] of Object.entries(SUITES)) {
     if (q.get("only") && q.get("only") !== suite) continue;
     app.insertAdjacentHTML("beforeend", `<h2>${suite}</h2><div class="grid" id="g-${suite}"></div>`);
-    for (const [label, mutate] of Object.entries(cases)) {
+    for (const [label, spec] of Object.entries(cases)) {
+      const { config: cfg = config, mutate } = spec && typeof spec === "object" ? spec : { mutate: spec };
       const cell = document.createElement("div");
       cell.className = "cell";
+      if (w && !q.get("w")) cell.style.width = `${w}px`;
       cell.innerHTML = `<small>${label}</small>`;
-      const card = document.createElement(config.type.replace("custom:", ""));
-      card.setConfig(config);
+      const card = document.createElement(cfg.type.replace("custom:", ""));
+      card.setConfig(cfg);
       card.hass = hassWith(mutate);
       cell.append(card);
       document.getElementById(`g-${suite}`).append(cell);

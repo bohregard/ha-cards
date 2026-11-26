@@ -1,6 +1,6 @@
 # HA Cards
 
-Custom Home Assistant dashboard cards: a Dreame vacuum, ESPHome cat feeders, a scale-based water fountain and a Litter-Robot. Install through the Marketplace (HACS) as a custom **Dashboard** repository. All cards are in one bundle.
+Custom Home Assistant dashboard cards: a Dreame vacuum, ESPHome cat feeders, a scale-based water fountain, a Litter-Robot, and Home-screen cards for rooms, pets, a weather station and a CT energy monitor. Install through the Marketplace (HACS) as a custom **Dashboard** repository. All cards are in one bundle.
 
 Each card takes one `entity` and finds the rest from that entity's device (by translation key, or by the end of the entity id for ESPHome devices).
 
@@ -90,6 +90,89 @@ cats:                                      # optional, lightest first; no max_lb
   - { name: Cat 3 }
 ```
 
+## Room card
+
+One room at a glance, sized for a two-column grid on a phone.
+
+- The room's icon is its one action: it toggles the main light and glows while it's on.
+- Temperature, humidity and how many of the room's lights are on.
+- What Frigate sees right now (person, cat or dog) from any of the room's cameras. Nothing shows when nothing is there.
+- The air, when the room has the sensors: "Air good", or the worst reading in amber or red. PM2.5 uses the 2024 EPA AQI breakpoints and VOC the Sensirion index.
+- Anywhere else on the card opens `navigation_path`.
+
+```yaml
+type: custom:brinstar-room-card
+name: Kitchen
+icon: mdi:fridge-outline
+light: light.kitchen                 # the one action
+lights: [light.kitchen, light.dining]  # optional, for "2 on"
+temperature: sensor.kitchen_temperature  # optional
+humidity: sensor.kitchen_humidity        # optional
+pm25: sensor.kitchen_pm25                # optional
+voc: sensor.kitchen_voc_index            # optional
+frigate: [kitchen]                       # optional, Frigate camera names
+navigation_path: /dashboard-home/kitchen # optional
+```
+
+## Pets card
+
+The litter box, feeders and fountain on one card, problems first. Each row has the device's drawing, its status and one fact: the drawer level, when it was fed and the next meal, or the water left and the pump. It has no buttons; it opens `navigation_path`, where the full cards live.
+
+```yaml
+type: custom:brinstar-pets-card
+litter: vacuum.litter_robot_litter_box   # optional
+feeders:                                 # optional, any entity of each feeder
+  - { entity: sensor.feeder_1_last_fed, name: Feeder 1 }
+fountain: sensor.cat_fountain_water_weight  # optional
+capacity_grams: 3000                     # optional
+navigation_path: /dashboard-home/pets    # optional
+```
+
+## Weather card
+
+Conditions from your own weather station, with a forecast entity for the condition and the hours ahead.
+
+- Temperature and feels-like, with today's high, low and chance of rain.
+- Humidity, wind (speed, direction arrow, gust and today's max gust), rain today and this week, pressure and whether it's rising or falling over 3 hours, UV and sunlight, dew point.
+- The last 24 hours of temperature with rain per hour underneath, from long-term statistics.
+- The next six hours from `weather.get_forecasts`.
+
+`entity` is the station's outdoor temperature. The other readings are found on the same device by the end of their entity ids: `feelslike`, `humidity`, `dewpoint`, `windspeed`, `windgust`, `maxdailygust`, `winddir`, `dailyrain`, `weeklyrain`, `baromrel`, `uv`, `solarradiation`. Readings the station doesn't have show as a dash.
+
+```yaml
+type: custom:brinstar-weather-card
+entity: sensor.station_temp
+weather: weather.home                    # optional, condition and forecast
+navigation_path: /dashboard-weather      # optional
+```
+
+## Energy card
+
+Whole-house power from a CT energy monitor such as a CircuitSetup meter on ESPHome.
+
+- Watts, amps and volts now; energy and cost so far today.
+- Each leg's current against the main breaker; amber from 80% and red from 95%.
+- The last 24 hours of power (5-minute statistics) and its peak.
+- The circuits using it now, largest first, then "Rest of the house": what the main clamps see that no circuit clamp does.
+
+```yaml
+type: custom:brinstar-energy-card
+power: sensor.main_watts
+current: sensor.main_amps                # optional
+voltage: sensor.voltage                  # optional
+energy_today: sensor.main_kwh_today      # optional, resets at midnight
+cost_today: sensor.main_cost_today       # optional
+max_current: 150                         # optional, main breaker size
+legs:                                    # optional
+  - { name: Leg A, current: sensor.main_a_amps }
+  - { name: Leg B, current: sensor.main_b_amps }
+circuits:                                # optional
+  - { name: Kitchen, power: sensor.kitchen_watts }
+  - { name: Dryer, power: sensor.dryer_watts }
+top: 6                                   # optional, circuits listed before the rest fold into one row
+navigation_path: /energy                 # optional
+```
+
 ## Development
 
 ```sh
@@ -98,6 +181,6 @@ npm test         # vitest
 npm run build    # dist/brinstar-cards.js
 ```
 
-`dev/harness.html` renders every card in its main states from a fixture recorded from a real Home Assistant (`dev/fixture.json`, git-ignored). Serve the repo root (`python3 -m http.server`) and open `/dev/harness.html?theme=light&w=358`.
+`dev/harness.html` renders every card in its main states from a fixture recorded from a real Home Assistant (`dev/fixture.json`, git-ignored). The room, pets, weather and energy suites also need `dev/fixture-home.json` (git-ignored), which carries that house's card configs alongside its states, registry entries and replies. Serve the repo root (`python3 -m http.server`) and open `/dev/harness.html?theme=light&w=358`, or add `&only=rooms` (or `pets`, `weather`, `energy`) for one suite.
 
 Tagging `vX.Y.Z` builds the bundle and attaches it to a GitHub release, which the Marketplace installs.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countPerDay, onTimes, parseHistory, parseStatistics, sumPerDay } from "../src/lib/history";
+import { countPerDay, fetchStatistics, onTimes, parseHistory, parseStatistics, sumPerDay } from "../src/lib/history";
 
 describe("parseHistory", () => {
   it("reads compressed rows, preferring last_changed over last_updated", () => {
@@ -74,5 +74,40 @@ describe("sumPerDay", () => {
       { t: at(21, 9), v: 9 },
     ];
     expect(sumPerDay(items, now, 2)).toEqual([2, 3]);
+  });
+});
+
+describe("parseStatistics with a field", () => {
+  it("reads another statistic field, such as max for a running total", () => {
+    const resp = { "sensor.rain": [{ start: 1, mean: null, max: 0.2 }, { start: 2, max: 0.3 }, { start: 3 }] };
+    expect(parseStatistics(resp, "sensor.rain", "max")).toEqual([
+      { t: 1, v: 0.2 },
+      { t: 2, v: 0.3 },
+    ]);
+  });
+});
+
+describe("fetchStatistics with a field", () => {
+  it("asks for that statistic type and reads it back", async () => {
+    let sent: Record<string, unknown> = {};
+    const hass = {
+      callWS: async <T>(msg: Record<string, unknown>) => {
+        sent = msg;
+        return { "sensor.rain": [{ start: 5, max: 0.4 }] } as T;
+      },
+    };
+    const out = await fetchStatistics(hass, ["sensor.rain"], 0, 10, "hour", "max");
+    expect(sent.types).toEqual(["max"]);
+    expect(out["sensor.rain"]).toEqual([{ t: 5, v: 0.4 }]);
+  });
+});
+
+describe("parseStatistics for a running total", () => {
+  it("reads the state at the end of each period, which is all HA keeps for total sensors", () => {
+    const resp = { "sensor.rain": [{ start: 1, state: 0.1 }, { start: 2, state: 0.3 }, { start: 3 }] };
+    expect(parseStatistics(resp, "sensor.rain", "state")).toEqual([
+      { t: 1, v: 0.1 },
+      { t: 2, v: 0.3 },
+    ]);
   });
 });
