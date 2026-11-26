@@ -6,6 +6,7 @@ import { fetchStatistics, type ValuePoint } from "../lib/history";
 import { navigate } from "../lib/nav";
 import { compass, conditionIcon, conditionLabel, pressureTrend, rainPerHour } from "../lib/weather";
 import { timeChart } from "./chart";
+import { fold, foldButton } from "./fold";
 import { homeStyles } from "./home-styles";
 
 export interface WeatherCardConfig {
@@ -16,6 +17,8 @@ export interface WeatherCardConfig {
   weather?: string;
   name?: string;
   navigation_path?: string;
+  /** Start with the readings, chart and next hours showing (default: folded away). */
+  expanded?: boolean;
 }
 
 interface Forecast {
@@ -41,6 +44,7 @@ export class BrinstarWeatherCard extends BaseCard<WeatherCardConfig> {
   @state() private pressure: ValuePoint[] = [];
   @state() private hourly: Forecast[] = [];
   @state() private today?: Forecast;
+  @state() private expanded = false;
 
   static styles = [
     homeStyles,
@@ -67,6 +71,7 @@ export class BrinstarWeatherCard extends BaseCard<WeatherCardConfig> {
   setConfig(config: WeatherCardConfig) {
     if (!config?.entity) throw new Error("Set entity to the weather station's outdoor temperature sensor");
     this.config = config;
+    this.expanded = !!config.expanded;
   }
 
   getCardSize() {
@@ -88,13 +93,16 @@ export class BrinstarWeatherCard extends BaseCard<WeatherCardConfig> {
     return [this.config!.entity, this.config!.weather, ...Object.values(this.ids())];
   }
 
-  /** Refetch on the hour, so the chart and the hourly forecast move along. */
+  /** Refetch on the hour, so the chart and the hourly forecast move along, and when the card opens. */
   protected historyKey() {
-    return String(Math.floor(Date.now() / HOUR));
+    return `${this.expanded ? "open" : "shut"}|${Math.floor(Date.now() / HOUR)}`;
   }
 
+  /** Folded, the card needs only today's forecast; the history and hours load when it opens. */
   protected async loadHistory() {
     if (!this.hass || !this.config) return;
+    if (this.config.weather) this.today = (await this.forecast("daily"))[0];
+    if (!this.expanded) return;
     const i = this.ids();
     const now = Date.now();
     const start = now - 25 * HOUR;
@@ -107,7 +115,6 @@ export class BrinstarWeatherCard extends BaseCard<WeatherCardConfig> {
     }
     if (this.config.weather) {
       this.hourly = (await this.forecast("hourly")).filter((f) => Date.parse(f.datetime) > now - HOUR).slice(0, 6);
-      this.today = (await this.forecast("daily"))[0];
     }
   }
 
@@ -177,7 +184,7 @@ export class BrinstarWeatherCard extends BaseCard<WeatherCardConfig> {
             : nothing}
         </div>
 
-        <div class="readings">
+        ${fold(this.expanded, "weather-details", html`<div class="readings">
           <div class="reading"><span>Humidity</span><b class="num">${fixed(n("humidity"), 0)}%</b></div>
           <div class="reading"><span>Wind</span>
             <b class="num">${fixed(n("windspeed"), 0)} ${this.unit(i.windspeed)}
@@ -214,7 +221,8 @@ export class BrinstarWeatherCard extends BaseCard<WeatherCardConfig> {
                 </div>`)}
               </div>
             </section>`
-          : nothing}
+          : nothing}`)}
+        ${foldButton(this.expanded, "weather-details", () => (this.expanded = !this.expanded))}
       </div>
     </ha-card>`;
   }

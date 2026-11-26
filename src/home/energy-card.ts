@@ -5,6 +5,7 @@ import { formatPower, rankCircuits } from "../lib/energy";
 import { fetchStatistics, type ValuePoint } from "../lib/history";
 import { navigate } from "../lib/nav";
 import { timeChart } from "./chart";
+import { fold, foldButton } from "./fold";
 import { homeStyles } from "./home-styles";
 
 export interface EnergyCardConfig {
@@ -27,6 +28,8 @@ export interface EnergyCardConfig {
   /** How many circuits to list before the rest fold into one row (default 6). */
   top?: number;
   navigation_path?: string;
+  /** Start with the legs, chart and circuits showing (default: folded away). */
+  expanded?: boolean;
 }
 
 const HOUR = 3_600_000;
@@ -37,6 +40,7 @@ const HOUR = 3_600_000;
  */
 export class BrinstarEnergyCard extends BaseCard<EnergyCardConfig> {
   @state() private history: ValuePoint[] = [];
+  @state() private expanded = false;
 
   static styles = [
     homeStyles,
@@ -60,6 +64,7 @@ export class BrinstarEnergyCard extends BaseCard<EnergyCardConfig> {
   setConfig(config: EnergyCardConfig) {
     if (!config?.power) throw new Error("Set power to the whole-house power sensor");
     this.config = config;
+    this.expanded = !!config.expanded;
   }
 
   getCardSize() {
@@ -75,13 +80,14 @@ export class BrinstarEnergyCard extends BaseCard<EnergyCardConfig> {
     return [c.power, c.current, c.voltage, c.energy_today, c.cost_today, ...(c.legs ?? []).flatMap((l) => [l.current, l.power]), ...(c.circuits ?? []).map((x) => x.power)];
   }
 
-  /** Refetch every quarter hour so the chart keeps up. */
+  /** Refetch every quarter hour so the chart keeps up, and when the card opens. */
   protected historyKey() {
-    return String(Math.floor(Date.now() / (HOUR / 4)));
+    return `${this.expanded ? "open" : "shut"}|${Math.floor(Date.now() / (HOUR / 4))}`;
   }
 
+  /** The 24 h chart is only fetched once the card is open. */
   protected async loadHistory() {
-    if (!this.hass || !this.config) return;
+    if (!this.hass || !this.config || !this.expanded) return;
     const now = Date.now();
     const s = await fetchStatistics(this.hass, [this.config.power], now - 24 * HOUR, now, "5minute");
     this.history = s[this.config.power] ?? [];
@@ -108,6 +114,13 @@ export class BrinstarEnergyCard extends BaseCard<EnergyCardConfig> {
     const day = this.history.filter((p) => p.t >= now - 24 * HOUR);
     if (day.length && watts !== undefined) day.push({ t: now, v: watts });
     const peak = day.length ? day.reduce((a, b) => (b.v > a.v ? b : a)) : undefined;
+    // Folded, a leg close to the main breaker still shows: quiet by default, loud by exception.
+    const hot = max
+      ? (c.legs ?? [])
+          .map((l) => ({ name: l.name, f: (this.num(l.current) ?? 0) / max }))
+          .filter((l) => l.f >= 0.8)
+          .sort((a, b) => b.f - a.f)[0]
+      : undefined;
     const money = (v: number) => v.toLocaleString(lang, { style: "currency", currency: this.st(c.cost_today)?.attributes.unit_of_measurement ?? "USD" });
 
     return html`<ha-card>
@@ -132,7 +145,10 @@ export class BrinstarEnergyCard extends BaseCard<EnergyCardConfig> {
             : nothing}
         </div>
 
-        ${c.legs?.length
+        ${hot && !this.expanded
+          ? html`<div class="sub ${hot.f >= 0.95 ? "tone-error" : "tone-warn"}">${hot.name} is at ${Math.round(hot.f * 100)}% of the ${max} A main breaker</div>`
+          : nothing}
+        ${fold(this.expanded, "energy-details", html`${c.legs?.length
           ? html`<div class="legs" aria-label="Current on each leg">
               ${c.legs.map((l) => {
                 const a = this.num(l.current);
@@ -162,7 +178,8 @@ export class BrinstarEnergyCard extends BaseCard<EnergyCardConfig> {
                 </div>`)}
               </div>
             </section>`
-          : nothing}
+          : nothing}`)}
+        ${foldButton(this.expanded, "energy-details", () => (this.expanded = !this.expanded))}
       </div>
     </ha-card>`;
   }
