@@ -8,7 +8,7 @@
   Visual harness for the pet cards. Serve the repo root over HTTP (python3 -m http.server)
   and open /dev/harness.html. Needs dev/fixture.json (recorded from a real Home Assistant,
   git-ignored) and a built dist/brinstar-cards.js.
-  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter|rooms|pets|weather|energy|security
+  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter|rooms|pets|weather|energy|security|lights
   The Home cards (rooms, pets, weather, energy) also need dev/fixture-home.json, written by the
   workspace's recorder with that house's card configs; it is merged over fixture.json.
 -->
@@ -220,6 +220,25 @@
         "one leg loaded": (set) => { set(E.legs[0].current, "131"); set(E.legs[1].current, "18"); },
       },
     };
+    const Lc = C.lights;
+    if (Lc) {
+      const ids = Lc.lights.map((l) => l.entity);
+      const on = (list, pct) => (set) => list.forEach((id) => set(id, "on", pct && id.startsWith("light.") ? { brightness: Math.round(pct * 2.55) } : {}));
+      const off = (set) => [...ids, ...(Lc.all_off_extra ?? [])].forEach((id) => set(id, "off"));
+      SUITES.lights = {
+        config: Lc,
+        cases: {
+          live: null,
+          "all off": off,
+          "one dimmer at 30%": (set, states) => {
+            off(set);
+            const dim = ids.find((id) => (states[id]?.attributes.supported_color_modes ?? []).some((m) => m !== "onoff"));
+            on([dim], 30)(set);
+          },
+          "evening, many on": (set) => { off(set); on(ids.slice(0, 9), 70)(set); },
+        },
+      };
+    }
     const Sc = C.security;
     if (Sc) {
       const L = Sc.locks ?? [], G = Sc.covers ?? [], K = Sc.contacts ?? [];
