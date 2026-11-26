@@ -153,7 +153,7 @@ export class BrinstarPetsCard extends BaseCard<PetsCardConfig> {
         name: f.name ?? "Feeder",
         art: feederArt({ fallback, tone: online ? status.tone : "idle" }),
         status,
-        fact: html`${Number.isNaN(last) ? "Not fed yet" : html`Fed <b>${when(last, now, lang)}</b>`}${next ? html` · next ${lower(when(next.at, now, lang))}` : nothing}`,
+        fact: html`${Number.isNaN(last) ? "Not fed yet" : html`Fed <b>${lower(when(last, now, lang))}</b>`}${next ? html` · next ${lower(when(next.at, now, lang))}` : nothing}`,
       });
     }
 
