@@ -8,7 +8,7 @@
   Visual harness for the pet cards. Serve the repo root over HTTP (python3 -m http.server)
   and open /dev/harness.html. Needs dev/fixture.json (recorded from a real Home Assistant,
   git-ignored) and a built dist/brinstar-cards.js.
-  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter|rooms|pets|weather|energy|security|lights|climate
+  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter|rooms|pets|weather|energy|security|lights|climate|vacuum
   The Home cards (rooms, pets, weather, energy) also need dev/fixture-home.json, written by the
   workspace's recorder with that house's card configs; it is merged over fixture.json.
 -->
@@ -285,6 +285,33 @@
           "garage offline (fallback)": (set) => set(G[0].entity, "unavailable"),
           "two windows open": (set) => K.slice(-2).forEach((k) => set(k.entity, "on")),
           "four open": (set) => K.slice(0, 4).forEach((k) => set(k.entity, "on")),
+        },
+      };
+    }
+    const Vc = C.vacuum;
+    if (Vc) {
+      const V = Vc.entity, dev = fx.entities[V]?.device_id;
+      const sib = (key) => Object.values(fx.entities).find((e) => e.device_id === dev && e.translation_key === key
+        && e.entity_id.startsWith("sensor.") && !/_room_\d+_/.test(e.entity_id))?.entity_id;
+      const run = (state, room, pct, attrs) => (set) => {
+        set(V, state, { charging: false, battery: 86, ...attrs });
+        set(sib("current_room"), room); set(sib("cleaning_progress"), String(pct));
+        set(sib("cleaning_time"), "12"); set(sib("cleaned_area"), "9");
+      };
+      SUITES.vacuum = {
+        config: Vc,
+        cases: {
+          live: null,
+          "cleaning, 45%": run("cleaning", "Living Room", 45),
+          paused: run("paused", "Kitchen", 60),
+          "heading home": run("returning", "Kitchen", 100, { battery: 31 }),
+          "stopped off the dock": (set) => set(V, "idle", { charging: false, battery: 54 }),
+          "wheel stuck": run("error", "Hallway", 30, { has_error: true, error: "Wheel stuck", battery: 40 }),
+          offline: (set) => set(V, "unavailable"),
+          "dirty water tank": (set) => set(sib("dirty_water_tank_status"), "not_installed_or_full"),
+          "parts low": (set) => { set(sib("sensor_dirty_left"), "15"); set(sib("wheel_dirty_left"), "12"); },
+          "part due, battery low": (set) => { set(sib("sensor_dirty_left"), "6"); set(sib("wheel_dirty_left"), "12"); set(V, "docked", { battery: 14, charging: true }); },
+          "weekdays-only schedule": (set, states) => set(V, "docked", { schedule: states[V].attributes.schedule.map((t) => ({ ...t, repeats: "0111110" })) }),
         },
       };
     }

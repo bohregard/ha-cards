@@ -9,6 +9,7 @@ import { BrinstarFeederCard } from "./pets/feeder-card";
 import { BrinstarFountainCard } from "./pets/fountain-card";
 import { BrinstarLitterCard } from "./pets/litter-card";
 import { BrinstarVacuumStatusCard } from "./vacuum/status-card";
+import { BrinstarVacuumCompactCard } from "./home/vacuum-compact-card";
 import { BrinstarVacuumCard } from "./vacuum/vacuum-card";
 
 declare const __VERSION__: string;
@@ -26,6 +27,12 @@ const CARDS: [string, CustomElementConstructor, string, string][] = [
     BrinstarVacuumStatusCard,
     "Brinstar Vacuum Status Card",
     "Consumables with reset, last clean, and dock and tank status for a Dreame vacuum.",
+  ],
+  [
+    "brinstar-vacuum-compact-card",
+    BrinstarVacuumCompactCard,
+    "Brinstar Vacuum Compact Card",
+    "A Dreame vacuum at a glance: what it's doing, battery, last and next clean, parts running low; opens the full card.",
   ],
   ["brinstar-feeder-card", BrinstarFeederCard, "Brinstar Feeder Card", "Food left, last and next meal, feed now and meal times for an ESPHome cat feeder."],
   [

@@ -2,7 +2,7 @@ import { LitElement, html, nothing, svg, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { roomAt, vacuumToMap, type CalibrationPoint, type RoomBox } from "../lib/map";
 import type { Hass, HassEntity } from "../lib/hass";
-import { cleanCall, findSibling, stateTone, type ServiceCall } from "../lib/vacuum";
+import { batteryIcon, cleanCall, findSibling, stateTone, type ServiceCall } from "../lib/vacuum";
 import { styles } from "./styles";
 
 export interface VacuumCardConfig {
@@ -311,12 +311,4 @@ export class BrinstarVacuumCard extends LitElement {
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-function batteryIcon(pct: number, charging: boolean): string {
-  const step = Math.round(pct / 10) * 10;
-  const base = charging ? "mdi:battery-charging" : "mdi:battery";
-  if (step >= 100) return charging ? "mdi:battery-charging-100" : "mdi:battery";
-  if (step <= 0) return charging ? "mdi:battery-charging-outline" : "mdi:battery-outline";
-  return `${base}-${step}`;
 }

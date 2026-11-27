@@ -36,6 +36,24 @@ entity: vacuum.my_robot
 title: Maintenance   # optional
 ```
 
+## Vacuum compact card
+
+A Dreame vacuum at a glance, for a home screen. Tapping it opens the page with the full vacuum card.
+
+- **Headline:** what it's doing ("Docked", "Cleaning Kitchen", "Paused in Kitchen", "Heading home") or its worst problem (the robot's error, offline, a tank, dust bag or detergent that needs you, or a part under 10%). Battery sits on the right.
+- **Icon:** pauses a clean, and sends it home while it's paused or stopped off the dock. Docked, it's just the robot.
+- **While it runs:** the run's progress, time and area so far. Problems are listed under the headline.
+- **Docked and fine:** the last clean (when, how long, how much), the next scheduled clean and its rooms, and parts between 10% and 20%. The next clean has a day only for every-day and one-off schedules, since the integration doesn't say which weekdays the others use.
+
+Everything besides the vacuum is found on its device, like the status card.
+
+```yaml
+type: custom:brinstar-vacuum-compact-card
+entity: vacuum.my_robot
+name: Robot                          # optional
+navigation_path: /dashboard/vacuum   # optional; where tapping it goes
+```
+
 ## Feeder card
 
 For an ESPHome gravity feeder (built for a Petkit Fresh Element Solo running custom ESPHome firmware) that exposes `sensor.*_last_fed`, `sensor.*_dispensed_food_scoops`, `binary_sensor.*_food_low` / `_food_empty` / `_jammed`, `button.*_dispense_food`, `button.*_reset_food_level_refilled`, `number.*_manual_dispense_scoops` and `time.*_meal_N_time` / `number.*_meal_N_scoops`.
