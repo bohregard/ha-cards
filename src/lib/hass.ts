@@ -13,7 +13,7 @@ export interface Hass {
   states: Record<string, HassEntity>;
   entities: Record<string, EntityEntry>;
   locale?: { language: string };
-  config?: { unit_system?: { temperature?: string } };
+  config?: { unit_system?: { temperature?: string }; currency?: string };
   callService(domain: string, service: string, data: Record<string, unknown>): Promise<unknown>;
   callWS<T = unknown>(msg: Record<string, unknown>): Promise<T>;
   formatEntityState?(entity: HassEntity, state?: string): string;

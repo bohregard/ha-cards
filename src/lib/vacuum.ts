@@ -2,6 +2,8 @@ export interface EntityEntry {
   entity_id: string;
   device_id?: string;
   translation_key?: string;
+  /** The integration that made the entity, e.g. credit_cards. */
+  platform?: string;
 }
 
 export interface ServiceCall {
