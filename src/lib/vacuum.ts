@@ -55,3 +55,12 @@ export function stateTone(state: string, attrs: Record<string, unknown>): Tone {
   if (state === "docked") return "ok";
   return "idle";
 }
+
+/** The battery icon for a level, rounded to the nearest ten, with the charging variant. */
+export function batteryIcon(pct: number, charging: boolean): string {
+  const step = Math.round(pct / 10) * 10;
+  const base = charging ? "mdi:battery-charging" : "mdi:battery";
+  if (step >= 100) return charging ? "mdi:battery-charging-100" : "mdi:battery";
+  if (step <= 0) return charging ? "mdi:battery-charging-outline" : "mdi:battery-outline";
+  return `${base}-${step}`;
+}
