@@ -255,6 +255,19 @@ navigation_path: /energy                 # optional
 expanded: false                          # optional, start with the details open
 ```
 
+## Credit cards card
+
+Credit card payments from a `credit_cards` custom integration, installed separately. It makes one `date` sensor per card (state: the current due date; attributes `status`, `days_until`, `due_day`, `autopay`, `amount_due`, `payment_url`, `paid_on`, `card_id`), provides the `credit_cards.*` services the card calls, and sends the phone reminders. The card finds every card the integration made, so its config needs nothing else.
+
+- The most urgent card up top: overdue in red, due today or within 3 days in amber, otherwise the next one due or "All paid".
+- Each card, earliest due date first: when it's due, the amount if one is set, and a one-tap **Paid**. On the day it was marked paid it shows **Undo** instead. A card with a payment link opens it in a new tab.
+- **Manage cards** adds, edits and removes cards (name, due day, amount due, payment link, autopay). Delete takes a second tap. Card numbers are never asked for or stored.
+
+```yaml
+type: custom:brinstar-credit-cards-card
+title: Credit cards                      # optional
+```
+
 ## Development
 
 ```sh

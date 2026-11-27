@@ -10,9 +10,14 @@ export function fold(open: boolean, id: string, content: TemplateResult): Templa
   </div>`;
 }
 
-/** The button under a card that opens or closes its fold. */
-export function foldButton(open: boolean, controls: string, onToggle: () => void): TemplateResult {
+/** The button under a card that opens or closes its fold. `labels`: [when shut, when open]. */
+export function foldButton(
+  open: boolean,
+  controls: string,
+  onToggle: () => void,
+  labels: [string, string] = ["Show details", "Hide details"],
+): TemplateResult {
   return html`<button class="expand" aria-expanded=${open ? "true" : "false"} aria-controls=${controls} @click=${onToggle}>
-    ${open ? "Hide details" : "Show details"}<ha-icon icon="mdi:chevron-down"></ha-icon>
+    ${open ? labels[1] : labels[0]}<ha-icon icon="mdi:chevron-down"></ha-icon>
   </button>`;
 }

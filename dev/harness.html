@@ -8,7 +8,7 @@
   Visual harness for the pet cards. Serve the repo root over HTTP (python3 -m http.server)
   and open /dev/harness.html. Needs dev/fixture.json (recorded from a real Home Assistant,
   git-ignored) and a built dist/brinstar-cards.js.
-  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter|rooms|pets|weather|energy|security|lights|climate|vacuum
+  Query: ?theme=light|dark  &w=<card width px>  &only=feeder|fountain|litter|rooms|pets|weather|energy|security|lights|climate|vacuum|credit-cards
   The Home cards (rooms, pets, weather, energy) also need dev/fixture-home.json, written by the
   workspace's recorder with that house's card configs; it is merged over fixture.json.
 -->
@@ -96,6 +96,7 @@
       states,
       entities: fx.entities,
       locale: { language: "en-US" },
+      config: { currency: "USD" },
       formatEntityState: (e) => e.state,
       hassUrl: (p) => p,
       callService: async (d, s, data) => log(`${d}.${s} ${JSON.stringify(data)}`),
@@ -315,6 +316,46 @@
         },
       };
     }
+  }
+
+  // Credit cards: made-up cards with due dates relative to today (credit_cards integration sensors).
+  {
+    const iso = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("en-CA"); };
+    const ccIds = Array.from({ length: 6 }, (_, i) => `sensor.credit_card_${i + 1}`);
+    for (const id of ccIds) fx.entities[id] = { entity_id: id, platform: "credit_cards" };
+    const cc = (rows) => (_set, states) => rows.forEach(([name, status, days, extra], i) => {
+      states[ccIds[i]] = {
+        entity_id: ccIds[i], state: iso(days), last_updated: "",
+        attributes: { friendly_name: name, card_id: `c${i + 1}`, status, days_until: days, due_day: Number(iso(days).slice(8)),
+          autopay: status === "autopay", amount_due: null, payment_url: null, paid_on: null, device_class: "date", ...extra },
+      };
+    });
+    const link = "https://pay.example.com";
+    SUITES["credit-cards"] = {
+      config: { type: "custom:brinstar-credit-cards-card" },
+      cases: {
+        mixed: cc([
+          ["Acme Visa", "overdue", -5, { amount_due: 120.5, payment_url: link }],
+          ["Northwind Store Card", "due_today", 0, { amount_due: 45 }],
+          ["Contoso Rewards", "due_soon", 2, { payment_url: link }],
+          ["Fabrikam Card", "upcoming", 20, {}],
+          ["Tailspin Visa", "paid", 30, { paid_on: iso(0) }],
+          ["Woodgrove Card", "autopay", 6, {}],
+        ]),
+        "one overdue": cc([["Acme Visa", "overdue", -1, { amount_due: 1234.5 }], ["Northwind Store Card", "upcoming", 12, {}]]),
+        "all paid": cc([
+          ["Acme Visa", "paid", 25, { paid_on: iso(-3) }],
+          ["Northwind Store Card", "paid", 31, { paid_on: iso(0) }],
+          ["Woodgrove Card", "autopay", 4, {}],
+        ]),
+        "autopay only": cc([["Woodgrove Card", "autopay", 4, {}], ["Tailspin Visa", "autopay", 18, {}]]),
+        empty: null,
+        "long names": cc([
+          ["Northwind Traders Platinum Rewards Visa Signature", "due_soon", 3, { amount_due: 12345.67, payment_url: link }],
+          ["Contoso Home Improvement Store Credit Card", "upcoming", 9, { amount_due: 89.99 }],
+        ]),
+      },
+    };
   }
 
   const app = document.getElementById("app");
