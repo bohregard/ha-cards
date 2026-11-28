@@ -1,6 +1,7 @@
 /**
  * Credit cards from the credit_cards integration: one `date` sensor per card, whose state is the
- * current due date and whose attributes say whether it's paid, due soon or overdue.
+ * current due date and whose attributes say whether it's paid, due soon or overdue. A card linked
+ * to its bank (through Plaid) also says which bank, and whether it needs signing in again.
  */
 import type { HassEntity } from "./hass";
 import type { EntityEntry } from "./vacuum";
@@ -21,6 +22,11 @@ export interface CreditCard {
   amountDue?: number;
   paymentUrl?: string;
   paidOn?: string;
+  /** The bank the card syncs from; absent when it isn't linked. */
+  bank?: string;
+  bankStatus?: "ok" | "relink";
+  /** Tapped Paid, and the bank hasn't shown the payment yet. */
+  awaitingBank?: boolean;
 }
 
 /** The add/edit form, as typed. */
@@ -56,6 +62,9 @@ export function readCards(states: Record<string, HassEntity>, entities: Record<s
     if (typeof a.amount_due === "number") card.amountDue = a.amount_due;
     if (typeof a.payment_url === "string" && a.payment_url) card.paymentUrl = a.payment_url;
     if (typeof a.paid_on === "string" && a.paid_on) card.paidOn = a.paid_on;
+    if (typeof a.bank === "string" && a.bank) card.bank = a.bank;
+    if (a.bank_status === "ok" || a.bank_status === "relink") card.bankStatus = a.bank_status;
+    if (a.awaiting_bank === true) card.awaitingBank = true;
     cards.push(card);
   }
   return cards;
@@ -111,13 +120,20 @@ export function statusLine(card: CreditCard, lang?: string): { tone: Tone; text:
       return { tone, text: `${days(-card.daysUntil)} overdue · was due ${due}` };
     case "due_today":
       return { tone, text: "Due today" };
-    case "paid":
-      return { tone, text: `${card.paidOn ? `Paid ${dateLabel(card.paidOn, lang)}` : "Paid"} · next ${due}` };
+    case "paid": {
+      const paid = card.paidOn ? `Paid ${dateLabel(card.paidOn, lang)}` : "Paid";
+      return { tone, text: `${paid} · ${card.awaitingBank ? "waiting on bank" : `next ${due}`}` };
+    }
     case "autopay":
       return { tone, text: `Autopay · ${due}` };
     default:
       return { tone, text: `Due ${due} · ${soon(card.daysUntil)}` };
   }
+}
+
+/** A note under a linked card's status line when its bank needs attention. */
+export function bankNote(card: CreditCard): { tone: Tone; text: string } | undefined {
+  return card.bank && card.bankStatus === "relink" ? { tone: "warn", text: `Re-link ${card.bank} in Settings` } : undefined;
 }
 
 export function canPay(card: CreditCard): boolean {
@@ -135,21 +151,25 @@ export function formatAmount(n: number, currency: string | undefined, lang?: str
     : new Intl.NumberFormat(lang, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
-/** Checks the form; `data` is ready for credit_cards.add_card / update_card. */
-export function validateForm(form: CardForm, others: string[]): { data?: Record<string, unknown>; error?: string } {
+/**
+ * Checks the form; `data` is ready for credit_cards.add_card / update_card. A bank-linked card's
+ * due day and amount come from the bank, so they're left out (the integration refuses them).
+ */
+export function validateForm(form: CardForm, others: string[], linked = false): { data?: Record<string, unknown>; error?: string } {
   const name = form.name.trim();
   if (!name) return { error: "Give the card a name" };
   if (others.some((o) => o.trim().toLowerCase() === name.toLowerCase())) return { error: `A card named ${name} already exists` };
 
   const day = form.dueDay.trim();
-  if (!/^\d{1,2}$/.test(day) || Number(day) < 1 || Number(day) > 31) return { error: "Due day must be a number from 1 to 31" };
+  if (!linked && (!/^\d{1,2}$/.test(day) || Number(day) < 1 || Number(day) > 31)) return { error: "Due day must be a number from 1 to 31" };
 
   const amount = form.amount.trim().replace(/[$€£,\s]/g, "");
-  if (amount && !/^\d+(\.\d{1,2})?$/.test(amount)) return { error: "Amount due must be a number, like 120.50" };
+  if (!linked && amount && !/^\d+(\.\d{1,2})?$/.test(amount)) return { error: "Amount due must be a number, like 120.50" };
 
   const url = form.url.trim();
   if (url && !/^https?:\/\/[^\s/]+\S*$/i.test(url)) return { error: "Payment link must start with https://" };
 
+  if (linked) return { data: { name, payment_url: url, autopay: form.autopay } };
   return { data: { name, due_day: Number(day), amount_due: amount ? Number(amount) : null, payment_url: url, autopay: form.autopay } };
 }
 

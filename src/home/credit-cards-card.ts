@@ -2,6 +2,7 @@ import { css, html, nothing, type TemplateResult } from "lit";
 import { state } from "lit/decorators.js";
 import { BaseCard } from "../lib/base-card";
 import {
+  bankNote,
   canPay,
   canUndo,
   formatAmount,
@@ -29,7 +30,8 @@ const ICON_CLASS = { error: "bad", warn: "due", ok: "" } as const;
 /**
  * Credit card payments from the credit_cards integration: the most urgent card up top, then each
  * card with when it's due and a one-tap Paid (Undo the same day). The fold adds, edits and
- * removes cards.
+ * removes cards. A card linked to its bank gets its due day and amount from the bank, so those
+ * are locked in its form.
  */
 export class BrinstarCreditCardsCard extends BaseCard<CreditCardsCardConfig> {
   @state() private manage = false;
@@ -80,10 +82,10 @@ export class BrinstarCreditCardsCard extends BaseCard<CreditCardsCardConfig> {
       .pill.danger.armed { background: color-mix(in srgb, var(--bp-error) 14%, transparent); }
 
       .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-      .list li { display: flex; align-items: center; gap: 10px; min-height: 52px; }
+      .list li { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 0; }
       .list li + li { border-top: 1px solid var(--bp-line); }
-      .list .nm { flex: 1; min-width: 0; }
-      .list small { font-size: 0.78rem; font-weight: 500; color: var(--bp-muted); white-space: nowrap; }
+      .list .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+      .list small { font-size: 0.78rem; font-weight: 500; color: var(--bp-muted); overflow-wrap: anywhere; }
       .add { align-self: flex-start; }
       p.empty { margin: 0; padding: 0; line-height: 1.45; }
 
@@ -99,6 +101,9 @@ export class BrinstarCreditCardsCard extends BaseCard<CreditCardsCardConfig> {
       }
       input.text::placeholder { color: var(--bp-muted); opacity: 0.7; }
       input.text:focus-visible { outline: 2px solid var(--bp-lamp); outline-offset: 0; border-color: transparent; }
+      /* Set by the bank: still readable, plainly not a field to type in. */
+      input.text:disabled { background: transparent; border-style: dashed; border-color: color-mix(in srgb, var(--bp-muted) 45%, transparent); color: var(--bp-muted); -webkit-text-fill-color: var(--bp-muted); opacity: 1; cursor: default; }
+      .hint { margin: -4px 0 0; font-size: 0.75rem; font-weight: 500; color: var(--bp-muted); }
       .switch { flex-direction: row; align-items: center; justify-content: space-between; min-height: 44px; font-size: 0.9rem; font-weight: 600; color: var(--bp-text); cursor: pointer; }
       .switch small { display: block; margin-top: 2px; font-size: 0.75rem; font-weight: 500; color: var(--bp-muted); }
       .switch input {
@@ -172,7 +177,8 @@ export class BrinstarCreditCardsCard extends BaseCard<CreditCardsCardConfig> {
     e.preventDefault();
     const cards = this.cards();
     const others = cards.filter((c) => c.entityId !== this.editing).map((c) => c.name);
-    const { data, error } = validateForm(this.form, others);
+    const linked = Boolean(cards.find((c) => c.entityId === this.editing)?.bank);
+    const { data, error } = validateForm(this.form, others, linked);
     if (!data) {
       this.error = error;
       return;
@@ -230,6 +236,7 @@ export class BrinstarCreditCardsCard extends BaseCard<CreditCardsCardConfig> {
 
   private renderRow(c: CreditCard, today: string, currency: string | undefined, lang?: string): TemplateResult {
     const line = statusLine(c, lang);
+    const note = bankNote(c);
     const amount = c.amountDue !== undefined && canPay(c) ? formatAmount(c.amountDue, currency, lang) : undefined;
     return html`<li class="row">
       <div class="txt">
@@ -238,6 +245,7 @@ export class BrinstarCreditCardsCard extends BaseCard<CreditCardsCardConfig> {
               <span>${c.name}</span><ha-icon icon="mdi:open-in-new"></ha-icon></a>`
           : html`<span class="nm">${c.name}</span>`}
         <span class="line num ${line.tone}">${line.text}${amount ? html` · <b>${amount}</b>` : nothing}</span>
+        ${note ? html`<span class="line ${note.tone}">${note.text}</span>` : nothing}
       </div>
       ${canUndo(c, today)
         ? html`<button class="pill" aria-label="Undo paid for ${c.name}" @click=${() => this.undo(c)}>Undo</button>`
@@ -255,8 +263,10 @@ export class BrinstarCreditCardsCard extends BaseCard<CreditCardsCardConfig> {
             ${cards.map((c) => this.editing === c.entityId
               ? html`<li>${this.renderForm(c)}</li>`
               : html`<li>
-                  <span class="nm">${c.name}</span>
-                  <small class="num">Due day ${c.dueDay}${c.autopay ? " · autopay" : ""}</small>
+                  <span class="txt">
+                    <span class="nm">${c.name}</span>
+                    <small class="num">Due day ${c.dueDay}${c.bank ? ` · ${c.bank}` : ""}${c.autopay ? " · autopay" : ""}</small>
+                  </span>
                   <button class="pill" aria-label="Edit ${c.name}" @click=${() => this.edit(c.entityId, c)}>Edit</button>
                 </li>`)}
           </ul>`
@@ -271,6 +281,7 @@ export class BrinstarCreditCardsCard extends BaseCard<CreditCardsCardConfig> {
     const f = this.form;
     const armed = card && this.confirming === `remove:${card.entityId}`;
     const id = card?.id ?? NEW;
+    const bank = card?.bank;
     return html`<form @submit=${this.save} novalidate aria-label=${card ? `Edit ${card.name}` : "Add a card"}>
       <h4>${card ? `Edit ${card.name}` : "Add a card"}</h4>
       <label for="cc-name-${id}">Name
@@ -279,14 +290,15 @@ export class BrinstarCreditCardsCard extends BaseCard<CreditCardsCardConfig> {
       </label>
       <div class="two">
         <label for="cc-day-${id}">Due day
-          <input id="cc-day-${id}" class="text num" inputmode="numeric" autocomplete="off" placeholder="1–31"
-            .value=${f.dueDay} @input=${(e: Event) => this.setField("dueDay", (e.target as HTMLInputElement).value)} />
+          <input id="cc-day-${id}" class="text num" inputmode="numeric" autocomplete="off" placeholder="1–31" ?disabled=${Boolean(bank)}
+            aria-describedby=${bank ? `cc-bank-${id}` : nothing} .value=${f.dueDay} @input=${(e: Event) => this.setField("dueDay", (e.target as HTMLInputElement).value)} />
         </label>
         <label for="cc-amt-${id}">Amount due
-          <input id="cc-amt-${id}" class="text num" inputmode="decimal" autocomplete="off" placeholder="Optional"
-            .value=${f.amount} @input=${(e: Event) => this.setField("amount", (e.target as HTMLInputElement).value)} />
+          <input id="cc-amt-${id}" class="text num" inputmode="decimal" autocomplete="off" placeholder=${bank ? "None" : "Optional"} ?disabled=${Boolean(bank)}
+            aria-describedby=${bank ? `cc-bank-${id}` : nothing} .value=${f.amount} @input=${(e: Event) => this.setField("amount", (e.target as HTMLInputElement).value)} />
         </label>
       </div>
+      ${bank ? html`<p class="hint" id="cc-bank-${id}">Set by ${bank}</p>` : nothing}
       <label for="cc-url-${id}">Payment link
         <input id="cc-url-${id}" class="text" type="url" inputmode="url" autocomplete="off" placeholder="Optional, https://…"
           .value=${f.url} @input=${(e: Event) => this.setField("url", (e.target as HTMLInputElement).value)} />

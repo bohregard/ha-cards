@@ -354,6 +354,13 @@
           ["Northwind Traders Platinum Rewards Visa Signature", "due_soon", 3, { amount_due: 12345.67, payment_url: link }],
           ["Contoso Home Improvement Store Credit Card", "upcoming", 9, { amount_due: 89.99 }],
         ]),
+        // Synced from the bank: one synced, one tapped Paid and waiting on the bank, one needing a re-link.
+        "bank linked": cc([
+          ["Fabrikam Card", "due_soon", 3, { amount_due: 75, bank: "Fabrikam Federal Credit Union", bank_status: "relink" }],
+          ["Acme Visa", "upcoming", 18, { amount_due: 482.17, payment_url: link, bank: "Northwind Bank", bank_status: "ok" }],
+          ["Contoso Rewards", "paid", 29, { paid_on: iso(0), bank: "Contoso Bank", bank_status: "ok", awaiting_bank: true }],
+          ["Woodgrove Card", "upcoming", 9, { amount_due: 40 }],
+        ]),
       },
     };
   }
