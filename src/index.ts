@@ -1,4 +1,5 @@
 import { BrinstarEnergyCard } from "./home/energy-card";
+import { BrinstarLaundryCard } from "./home/laundry-card";
 import { BrinstarLightsCard } from "./home/lights-card";
 import { BrinstarClimateCard } from "./home/climate-card";
 import { BrinstarCreditCardsCard } from "./home/credit-cards-card";
@@ -54,6 +55,12 @@ const CARDS: [string, CustomElementConstructor, string, string][] = [
     BrinstarCreditCardsCard,
     "Brinstar Credit Cards Card",
     "Credit card due dates from the credit_cards integration: what's due or overdue, one-tap Paid, and add, edit or remove cards.",
+  ],
+  [
+    "brinstar-laundry-card",
+    BrinstarLaundryCard,
+    "Brinstar Laundry Card",
+    "Washer and dryer: running and for how long, power, cycle and time left from LG ThinQ, done, and waiting to be unloaded.",
   ],
   ["brinstar-energy-card", BrinstarEnergyCard, "Brinstar Energy Card", "Whole-house power, amps, legs, today's energy and the circuits using it, from a CT energy monitor."],
 ];

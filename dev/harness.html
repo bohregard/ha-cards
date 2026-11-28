@@ -365,6 +365,74 @@
     };
   }
 
+  // Laundry: a made-up washer on a smart plug and a dryer on a power-monitored circuit, each with
+  // an LG ThinQ-style appliance sensor. Times are relative to now; history comes from replies.
+  {
+    const WR = "binary_sensor.wash_plug_running", WP = "sensor.wash_plug_power", WL = "sensor.lg_washer";
+    const DR = "input_boolean.dry_running", DP = "sensor.dry_circuit_watts", DL = "sensor.lg_dryer";
+    const isoAgo = (min) => new Date(Date.now() - min * 60000).toISOString();
+    const lgIdle = { run_state: "-", current_course: "-", remain_time: "0:00:00", initial_time: "0:00:00",
+      error_state: "off", error_message: "-", pre_state: "Finished" };
+    const put = (states, id, state, attrs = {}, changedMin = 600, updatedMin = changedMin) => {
+      states[id] = { entity_id: id, state, attributes: attrs, last_changed: isoAgo(changedMin), last_updated: isoAgo(updatedMin) };
+    };
+    // Running sensors' history: [[state, minutes ago], ...] for the washer and the dryer.
+    const hist = (washer, dryer) => {
+      const rows = (pts) => pts.map(([s, min]) => ({ s, lu: (Date.now() - min * 60000) / 1000 }));
+      return { [`history|${[WR, DR].sort().join(",")}`]: { [WR]: rows(washer), [DR]: rows(dryer) } };
+    };
+    const base = (states, o = {}) => {
+      put(states, WR, o.wRun ? "on" : "off", { friendly_name: "Washer running" }, o.wChanged ?? 600);
+      put(states, WP, String(o.wWatts ?? 1.2), { unit_of_measurement: "W" }, 1);
+      put(states, WL, o.wLgState ?? "off", { ...lgIdle, door_open: "on", ...(o.wLg ?? {}) }, 600, o.wLgUpdated ?? 600);
+      put(states, DR, o.dRun ? "on" : "off", { friendly_name: "Dryer running" }, o.dChanged ?? 600);
+      put(states, DP, String(o.dWatts ?? 3.4), { unit_of_measurement: "W" }, 1);
+      put(states, DL, o.dLgState ?? "off", { ...lgIdle, ...(o.dLg ?? {}) }, 600, o.dLgUpdated ?? 600);
+    };
+    const Ld = {
+      type: "custom:brinstar-laundry-card",
+      machines: [
+        { name: "Washer", icon: "mdi:washing-machine", running: WR, power: WP, appliance: WL },
+        { name: "Dryer", icon: "mdi:tumble-dryer", running: DR, power: DP, appliance: DL },
+      ],
+    };
+    const idleHist = hist([["off", 1440], ["on", 600], ["off", 540]], [["off", 1440], ["on", 500], ["off", 430]]);
+    SUITES.laundry = {
+      config: Ld,
+      cases: {
+        "both idle": { replies: idleHist, mutate: (_s, st) => base(st) },
+        "washer running, LG offline": {
+          replies: hist([["off", 1440], ["on", 42]], [["off", 1440]]),
+          mutate: (_s, st) => base(st, { wRun: true, wChanged: 42, wWatts: 1053.4 }),
+        },
+        "washer cycle from LG, dryer done": {
+          replies: hist([["off", 1440], ["on", 42]], [["off", 1440], ["on", 80], ["off", 25]]),
+          mutate: (_s, st) => base(st, { wRun: true, wChanged: 42, wWatts: 612, wLgState: "on",
+            wLg: { run_state: "Rinsing", current_course: "Normal", remain_time: "0:23:00", initial_time: "1:05:00", door_open: "off" },
+            wLgUpdated: 1, dChanged: 25 }),
+        },
+        "dryer running with LG": {
+          replies: hist([["off", 1440]], [["off", 1440], ["on", 18]]),
+          mutate: (_s, st) => base(st, { dRun: true, dChanged: 18, dWatts: 5412, dLgState: "on",
+            dLg: { run_state: "Drying", current_course: "Time Dry", remain_time: "0:40:00", initial_time: "0:58:00" }, dLgUpdated: 1 }),
+        },
+        "washer waiting to be unloaded": {
+          replies: hist([["off", 1440], ["on", 70], ["off", 12]], [["off", 1440]]),
+          mutate: (_s, st) => base(st, { wChanged: 12, wLg: { door_open: "off" }, wLgUpdated: 5 }),
+        },
+        "LG error": {
+          replies: hist([["off", 1440], ["on", 30]], [["off", 1440]]),
+          mutate: (_s, st) => base(st, { wRun: true, wChanged: 30, wWatts: 40, wLgState: "on",
+            wLg: { run_state: "Spinning", error_state: "on", error_message: "UE (unbalanced load)" }, wLgUpdated: 1 }),
+        },
+        "restart blip in history": {
+          replies: hist([["off", 1440], ["on", 90], ["unavailable", 30], ["on", 30]], [["off", 1440]]),
+          mutate: (_s, st) => base(st, { wRun: true, wChanged: 30, wWatts: 980 }),
+        },
+      },
+    };
+  }
+
   const app = document.getElementById("app");
   for (const [suite, { config, cases, w }] of Object.entries(SUITES)) {
     if (q.get("only") && q.get("only") !== suite) continue;
