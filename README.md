@@ -262,6 +262,7 @@ Credit card payments from a `credit_cards` custom integration, installed separat
 - The most urgent card up top: overdue in red, due today or within 3 days in amber, otherwise the next one due or "All paid".
 - Each card, earliest due date first: when it's due, the amount if one is set, and a one-tap **Paid**. On the day it was marked paid it shows **Undo** instead. A card with a payment link opens it in a new tab.
 - **Manage cards** adds, edits and removes cards (name, due day, amount due, payment link, autopay). Delete takes a second tap. Card numbers are never asked for or stored.
+- **Bank-linked cards** (when the integration syncs a card from its bank; attributes `bank`, `bank_status`, `awaiting_bank`): Manage shows the bank's name, and the due day and amount are locked ("Set by …") because the bank sets them. A Paid tap the bank hasn't seen yet reads "waiting on bank". A bank that needs signing in again adds "Re-link … in Settings" under the card.
 
 ```yaml
 type: custom:brinstar-credit-cards-card

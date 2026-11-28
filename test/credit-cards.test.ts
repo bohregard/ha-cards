@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bankNote,
   canPay,
   canUndo,
   formatAmount,
@@ -51,6 +52,21 @@ describe("readCards", () => {
         daysUntil: 1, dueDay: 28, autopay: false, amountDue: 120.5, paymentUrl: "https://pay.example.com", paidOn: "2026-10-27",
       },
     ]);
+  });
+
+  it("reads a bank-linked card's bank, sync status and whether it's waiting on the bank", () => {
+    const linked = sensor("sensor.credit_card_linked", "2026-12-22", {
+      friendly_name: "Linked", card_id: "l1", status: "paid", bank: "Northwind Bank", bank_status: "relink",
+      synced_at: "2026-11-27T08:00:00-08:00", awaiting_bank: true,
+    });
+    const plain = sensor("sensor.credit_card_plain", "2026-12-02", { bank: null, bank_status: null, awaiting_bank: false });
+    const entities = {
+      "sensor.credit_card_linked": { entity_id: "sensor.credit_card_linked", platform: "credit_cards" },
+      "sensor.credit_card_plain": { entity_id: "sensor.credit_card_plain", platform: "credit_cards" },
+    };
+    const [l, p] = readCards({ "sensor.credit_card_linked": linked, "sensor.credit_card_plain": plain }, entities);
+    expect([l.bank, l.bankStatus, l.awaitingBank]).toEqual(["Northwind Bank", "relink", true]);
+    expect("bank" in p || "bankStatus" in p || "awaitingBank" in p).toBe(false);
   });
 });
 
@@ -111,6 +127,19 @@ describe("statusLine", () => {
     expect(statusLine(card({ status: "paid", due: "2026-12-22" }), lang).text).toBe("Paid · next Dec 22");
     expect(statusLine(card({ status: "autopay", due: "2026-12-02", autopay: true }), lang)).toEqual({ tone: "ok", text: "Autopay · Dec 2" });
   });
+
+  it("says a tapped Paid is waiting on the bank", () => {
+    const tapped = card({ status: "paid", due: "2027-01-22", paidOn: "2026-11-28", bank: "Northwind Bank", awaitingBank: true });
+    expect(statusLine(tapped, lang)).toEqual({ tone: "ok", text: "Paid Nov 28 · waiting on bank" });
+  });
+});
+
+describe("bankNote", () => {
+  it("asks for a re-link when the bank needs signing in again, and is quiet otherwise", () => {
+    expect(bankNote(card({ bank: "Northwind Bank", bankStatus: "relink" }))).toEqual({ tone: "warn", text: "Re-link Northwind Bank in Settings" });
+    expect(bankNote(card({ bank: "Northwind Bank", bankStatus: "ok" }))).toBeUndefined();
+    expect(bankNote(card({}))).toBeUndefined();
+  });
 });
 
 describe("canPay and canUndo", () => {
@@ -142,6 +171,12 @@ describe("validateForm", () => {
       data: { name: "Acme Visa", due_day: 22, amount_due: 1234.5, payment_url: "https://pay.example.com", autopay: false },
     });
     expect(validateForm({ ...good, amount: "", url: "" }, []).data).toMatchObject({ amount_due: null, payment_url: "" });
+  });
+
+  it("leaves out the due day and amount for a bank-linked card, which the bank sets", () => {
+    expect(validateForm({ ...good, dueDay: "", amount: "abc" }, [], true)).toEqual({
+      data: { name: "Acme Visa", payment_url: "https://pay.example.com", autopay: false },
+    });
   });
 
   it("explains what's wrong", () => {
