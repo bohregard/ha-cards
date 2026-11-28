@@ -269,6 +269,32 @@ type: custom:brinstar-credit-cards-card
 title: Credit cards                      # optional
 ```
 
+## Laundry card
+
+Washer and dryer state from a "running" entity per machine: a smart plug's binary sensor, or a helper turned on and off from a power reading. Each machine can add its power sensor and an LG ThinQ appliance sensor (`smartthinq_sensors`).
+
+- The headline is the most notable state: an LG error, a washer waiting to be unloaded, a run ("Washer · 23 min left", or "Washer running · 42 min" without LG), a finished run ("Dryer done 12 min ago"), or "Both idle".
+- Each machine says Running and for how long, with its watts. When LG reports a cycle, it adds the course and phase, the time left and a progress meter. When the machine runs but LG reports nothing (e.g. offline in ThinQ), it says so.
+- After a run, "Done … ago" lasts `done_hours` (4 by default). With an LG washer that has updated since the run ended and reports its door shut, it says "Waiting to be unloaded" until the door opens.
+- Run times come from the recorder's history of the running entity, skipping `unavailable` blips, so an HA restart doesn't reset them. Tapping a machine opens its LG entity, or its running entity.
+
+```yaml
+type: custom:brinstar-laundry-card
+title: Laundry                           # optional
+done_hours: 4                            # optional
+machines:
+  - name: Washer
+    icon: mdi:washing-machine
+    running: binary_sensor.washer_running
+    power: sensor.washer_power           # optional
+    appliance: sensor.washer             # optional, LG ThinQ
+  - name: Dryer
+    icon: mdi:tumble-dryer
+    running: input_boolean.dryer_running
+    power: sensor.dryer_power
+    appliance: sensor.dryer
+```
+
 ## Development
 
 ```sh
